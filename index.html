@@ -509,8 +509,8 @@ textarea:focus{border-color:var(--gold)}
           <label class="src-btn" for="ed-photo"><svg viewBox="0 0 26 26" fill="none" stroke="#f6dc94" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h4l2-3h8l2 3h4v13H3z"/><circle cx="13" cy="14" r="4"/></svg><b>拍照或掃描</b><small>照片、圖片或 PDF，由 Claude 辨識</small></label>
           <input type="file" id="ed-photo" accept="image/*,application/pdf,.pdf" multiple hidden>
           <button type="button" class="src-btn" id="btn-jp-open"><svg viewBox="0 0 26 26" fill="none" stroke="#f6dc94" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5 20l3-1L20 7l-2-2L6 17z"/><path d="M4 23h18"/></svg><b>輸入簡譜</b><small>直接打數字簡譜，不用網路</small></button>
-          <label class="src-btn" for="ed-score"><svg viewBox="0 0 26 26" fill="none" stroke="#f6dc94" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M7 3h9l5 5v15H7z"/><path d="M16 3v5h5M11 19v-6l5-1v5"/><circle cx="10" cy="19" r="1.5"/><circle cx="15" cy="17" r="1.5"/></svg><b>MusicXML 檔</b><small>從 MuseScore 匯出</small></label>
-          <input type="file" id="ed-score" accept=".musicxml,.xml,.mxl" hidden>
+          <label class="src-btn" for="ed-score"><svg viewBox="0 0 26 26" fill="none" stroke="#f6dc94" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M7 3h9l5 5v15H7z"/><path d="M16 3v5h5M11 19v-6l5-1v5"/><circle cx="10" cy="19" r="1.5"/><circle cx="15" cy="17" r="1.5"/></svg><b>樂譜檔</b><small>MuseScore（.mscz）或 MusicXML</small></label>
+          <input type="file" id="ed-score" accept=".musicxml,.xml,.mxl,.mscz,.mscx" hidden>
         </div>
         <span id="ed-score-name" class="fname">尚未選擇</span>
         <p id="ocr-unavail" class="hint" hidden>拍照辨識要在 claude.ai 上的「星韻魔法學院」頁面使用（會請 Claude 讀譜）。在那裡辨識、儲存後，按「匯出學生版網頁」就能放到 Netlify 給學生用。這個版本可以先用「輸入簡譜」或 MusicXML。</p>
@@ -520,7 +520,7 @@ textarea:focus{border-color:var(--gold)}
       </div>
       <label class="field"><span>每一關幾小節</span><input type="number" id="ed-stage" min="2" max="16" step="1" value="4"></label>
       <p id="ed-stage-info" class="hint"></p>
-      <p class="hint">MuseScore：檔案 → 匯出 → MusicXML。有反覆記號、一二房的樂譜會自動展開。</p>
+      <p class="hint">MuseScore 的 .mscz 檔可以直接上傳（需要網路）；也可以在 MuseScore 用「檔案 → 匯出 → MusicXML」。有反覆記號、一二房的樂譜會自動展開。</p>
       <p id="ed-err" class="err-msg" hidden></p>
     </div>
     <div class="panel">
@@ -659,6 +659,14 @@ const chs = (el, tag) => { const a = []; for (let n = el.firstChild; n; n = n.ne
 const txt = (el, tag) => { const c = ch(el, tag); return c ? c.textContent.trim() : ''; };
 
 async function readScoreFile(file) {
+  if (/\.mscx$/i.test(file.name)) return mscxToMusicXML(await file.text());
+  if (/\.mscz$/i.test(file.name)) {
+    if (!window.JSZip) throw new Error('讀取 MuseScore 檔（.mscz）需要網路連線。請連上網路，或在 MuseScore 用「匯出 → MusicXML（未壓縮）」再上傳。');
+    const zip = await JSZip.loadAsync(file);
+    const path = Object.keys(zip.files).find(p => /\.mscx$/i.test(p) && !/^META-INF/.test(p));
+    if (!path) throw new Error('這個 .mscz 檔裡找不到樂譜');
+    return mscxToMusicXML(await zip.file(path).async('string'));
+  }
   if (/\.mxl$/i.test(file.name)) {
     if (!window.JSZip) throw new Error('讀取 .mxl 壓縮檔需要網路連線。請連上網路，或在 MuseScore 匯出「未壓縮的 MusicXML（.musicxml）」。');
     const zip = await JSZip.loadAsync(file);
@@ -869,6 +877,116 @@ function makeTimeline(score, cfg) {
   if (cfg.chords) accNotes.push(...chordAccNotes(score, cfg.chords, q2s));
   accNotes.sort((a, b) => a.t0 - b.t0);
   return { measures, tracks, accNotes, q2s, bpmAt, duration: q2s(score.totalQ) };
+}
+
+/* ================= MuseScore (.mscz / .mscx) import ================= */
+function mscxToMusicXML(text) {
+  const doc = new DOMParser().parseFromString(text, 'application/xml');
+  if (doc.getElementsByTagName('parsererror').length) throw new Error('MuseScore 檔案無法解析');
+  const ms = doc.documentElement;
+  const sc = ms && ch(ms, 'Score');
+  if (!sc) throw new Error('這不是 MuseScore 樂譜檔');
+  const DIV = parseInt(txt(sc, 'Division')) || 480;
+  const parts = chs(sc, 'Part');
+  const staves = chs(sc, 'Staff');
+  if (!parts.length || !staves.length) throw new Error('MuseScore 檔案裡沒有樂譜內容');
+  const DT = { long: 16, breve: 8, whole: 4, half: 2, quarter: 1, eighth: 0.5, '16th': 0.25, '32nd': 0.125, '64th': 0.0625, '128th': 0.03125 };
+  const frac = s => { const m = /^(-?\d+)\/(\d+)$/.exec((s || '').trim()); return m ? +m[1] / +m[2] : 0; };
+  const xesc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  // map parts to score staves in order
+  let si = 0;
+  const pinfo = parts.map((p, pi) => {
+    const n = Math.max(1, chs(p, 'Staff').length);
+    const st = staves.slice(si, si + n); si += n;
+    let name = txt(p, 'trackName') || (ch(p, 'Instrument') ? txt(ch(p, 'Instrument'), 'longName') : '') || `聲部 ${pi + 1}`;
+    const vm = /^voice\s*(\d+)$/i.exec(name.trim()); if (vm) name = `第${'一二三四五六'[+vm[1] - 1] || vm[1]}部`;
+    return { name, staves: st.map(s => chs(s, 'Measure')) };
+  }).filter(p => p.staves.length && p.staves[0].length);
+  if (!pinfo.length) throw new Error('MuseScore 檔案裡沒有小節');
+  const nMeas = Math.max(...pinfo.map(p => p.staves[0].length));
+  // measure lengths & time signatures from the first staff
+  const ts = []; let cur = [4, 4];
+  const lens = [], meta = [];
+  for (let mi = 0; mi < nMeas; mi++) {
+    const m = pinfo[0].staves[0][mi];
+    let tsHere = null;
+    if (m) for (const v of chs(m, 'voice')) { const t = ch(v, 'TimeSig'); if (t) { tsHere = [parseInt(txt(t, 'sigN')) || 4, parseInt(txt(t, 'sigD')) || 4]; break; } }
+    if (tsHere) cur = tsHere;
+    ts.push(tsHere);
+    const nominal = Math.round(DIV * 4 * cur[0] / cur[1]);
+    const lenAttr = m && m.getAttribute('len');
+    lens.push(lenAttr ? Math.round(frac(lenAttr) * 4 * DIV) : nominal);
+    meta.push({ nominal, startRep: !!(m && ch(m, 'startRepeat')), endRep: m && ch(m, 'endRepeat') ? (parseInt(ch(m, 'endRepeat').textContent) || 2) : 0 });
+  }
+  let xml = '<?xml version="1.0" encoding="UTF-8"?><score-partwise version="3.1"><part-list>';
+  pinfo.forEach((p, i) => { xml += `<score-part id="P${i + 1}"><part-name>${xesc(p.name)}</part-name></score-part>`; });
+  xml += '</part-list>';
+  const STEP = ['C', 'C', 'D', 'D', 'E', 'F', 'F', 'G', 'G', 'A', 'A', 'B'], ALT = [0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0];
+  pinfo.forEach((p, pi) => {
+    xml += `<part id="P${pi + 1}">`;
+    for (let mi = 0; mi < nMeas; mi++) {
+      const len = lens[mi];
+      xml += `<measure number="${mi + 1}"${len !== meta[mi].nominal ? ' implicit="yes"' : ''}>`;
+      if (mi === 0 || ts[mi]) {
+        const t = ts[mi] || [4, 4];
+        xml += `<attributes>${mi === 0 ? `<divisions>${DIV}</divisions>` : ''}${mi === 0 && p.staves.length > 1 ? `<staves>${p.staves.length}</staves>` : ''}<time><beats>${t[0]}</beats><beat-type>${t[1]}</beat-type></time></attributes>`;
+      }
+      if (pi === 0 && meta[mi].startRep) xml += '<barline location="left"><repeat direction="forward"/></barline>';
+      let emitted = 0;
+      p.staves.forEach((measures, sidx) => {
+        const m = measures[mi]; if (!m) return;
+        chs(m, 'voice').forEach((v, vi) => {
+          const vno = sidx * 4 + vi + 1;
+          let pos = 0; const tup = [];
+          const moveTo = target => { if (target > emitted) xml += `<forward><duration>${target - emitted}</duration></forward>`; else if (target < emitted) xml += `<backup><duration>${emitted - target}</duration></backup>`; emitted = target; };
+          for (const el of chs(v)) {
+            const tag = el.nodeName;
+            if (tag === 'location') { pos += Math.round(frac(txt(el, 'fractions')) * 4 * DIV); continue; }
+            if (tag === 'Tuplet') { tup.push((parseInt(txt(el, 'normalNotes')) || 2) / (parseInt(txt(el, 'actualNotes')) || 3)); continue; }
+            if (tag === 'endTuplet') { tup.pop(); continue; }
+            if (tag === 'Tempo') {
+              const q = parseFloat(txt(el, 'tempo'));
+              if (q > 0) { moveTo(pos); xml += `<direction><direction-type><words/></direction-type><sound tempo="${Math.round(q * 60 * 100) / 100}"/></direction>`; }
+              continue;
+            }
+            if (tag !== 'Chord' && tag !== 'Rest') continue;
+            if (tag === 'Chord' && chs(el).some(c => /^(acciaccatura|appoggiatura|grace\d+|grace\d+after)$/.test(c.nodeName))) continue;
+            const dt = txt(el, 'durationType');
+            let d;
+            if (dt === 'measure') d = ch(el, 'duration') ? Math.round(frac(txt(el, 'duration')) * 4 * DIV) : len;
+            else {
+              d = (DT[dt] || 1) * DIV;
+              const dots = parseInt(txt(el, 'dots')) || 0; let add = d / 2; for (let i = 0; i < dots; i++) { d += add; add /= 2; }
+              for (const r of tup) d *= r;
+              d = Math.round(d);
+            }
+            if (d <= 0) continue;
+            moveTo(pos);
+            if (tag === 'Rest') { xml += `<note><rest/><duration>${d}</duration><voice>${vno}</voice><staff>${sidx + 1}</staff></note>`; }
+            else {
+              let lyr = '';
+              const L = ch(el, 'Lyrics');
+              if (L) { const t = txt(L, 'text').replace(/<[^>]*>/g, ''); const no = parseInt(txt(L, 'no')) || 0; if (t && no === 0) lyr = `<lyric><text>${xesc(t)}</text>${txt(L, 'syllabic') ? `<syllabic>${xesc(txt(L, 'syllabic'))}</syllabic>` : ''}</lyric>`; }
+              chs(el, 'Note').forEach((n, k) => {
+                const midi = parseInt(txt(n, 'pitch')); if (isNaN(midi)) return;
+                let tS = false, tE = false;
+                for (const sp of chs(n, 'Spanner')) if (sp.getAttribute('type') === 'Tie') { if (ch(sp, 'next')) tS = true; if (ch(sp, 'prev')) tE = true; }
+                if (ch(n, 'Tie')) tS = true;
+                const p12 = ((midi % 12) + 12) % 12;
+                xml += `<note>${k ? '<chord/>' : ''}<pitch><step>${STEP[p12]}</step>${ALT[p12] ? '<alter>1</alter>' : ''}<octave>${Math.floor(midi / 12) - 1}</octave></pitch><duration>${d}</duration>${tE ? '<tie type="stop"/>' : ''}${tS ? '<tie type="start"/>' : ''}<voice>${vno}</voice><staff>${sidx + 1}</staff>${k === 0 ? lyr : ''}</note>`;
+              });
+            }
+            emitted = pos + d; pos += d;
+          }
+          moveTo(0);
+        });
+      });
+      if (pi === 0 && meta[mi].endRep) xml += `<barline location="right"><repeat direction="backward"${meta[mi].endRep > 2 ? ` times="${meta[mi].endRep}"` : ''}/></barline>`;
+      xml += '</measure>';
+    }
+    xml += '</part>';
+  });
+  return xml + '</score-partwise>';
 }
 
 /* ================= demo song (traditional melody) ================= */
@@ -2656,7 +2774,7 @@ $('#ed-score').addEventListener('change', async e => {
     ED.song.xml = text; ED.song._score = null; ED.song.trackCfg = {}; ED.song.jianpu = ''; $('#jp-panel').hidden = true; $('#ed-ts-wrap').hidden = true;
     { const sc = getScore(ED.song); ED.song.chords = (!ED.song.audio && !sc.tracks.some(t => t.defRole === 'acc')) ? autoChords(sc) : ''; $('#ed-chords').value = ED.song.chords; $('#chords-msg').textContent = ED.song.chords ? '樂譜裡沒有鋼琴聲部，已依旋律自動配上和弦。' : ''; }
     $('#ed-score-name').textContent = f.name;
-    if (!ED.song.title) { ED.song.title = f.name.replace(/\.(musicxml|xml|mxl)$/i, ''); $('#ed-name').value = ED.song.title; }
+    if (!ED.song.title) { ED.song.title = f.name.replace(/\.(musicxml|xml|mxl|mscz|mscx)$/i, '').replace(/[(（](原版|原檔)[)）]$/, ''); $('#ed-name').value = ED.song.title; }
     refreshEditor();
   } catch (err) { edError(err.message); }
 });

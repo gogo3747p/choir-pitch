@@ -397,11 +397,13 @@ textarea:focus{border-color:var(--gold)}
     <div class="prac-row">
       <label class="field"><span>速度 <b id="rate-lbl">100%</b></span><input type="range" id="prac-rate" min="0.5" max="1.2" step="0.05" value="1"></label>
       <div class="field fit"><span>節拍器</span><div class="seg" id="seg-metro"><button type="button" data-v="1">開</button><button type="button" data-v="0">關</button></div></div>
-      <div class="field fit"><span>歌詞</span><div class="seg" id="seg-lyrics"><button type="button" data-v="1">顯示</button><button type="button" data-v="0">隱藏</button></div></div>
+      <div class="field fit"><span>音符下方</span><div class="seg" id="seg-under"><button type="button" data-v="lyrics">歌詞</button><button type="button" data-v="solfege">唱名</button><button type="button" data-v="none">隱藏</button></div></div>
+      <div class="field fit"><span>唱名方式</span><div class="seg" id="seg-sol"><button type="button" data-v="fixed">固定唱名</button><button type="button" data-v="movable">首調唱名</button></div></div>
       <div class="field fit"><span>跳過前奏</span><div class="seg" id="seg-skip"><button type="button" data-v="1">開</button><button type="button" data-v="0">關</button></div></div>
       <div class="field fit"><span>每小節幾拍</span><div class="seg" id="seg-beats"><button type="button" data-v="0" id="beats-auto">照樂譜</button><button type="button" data-v="2">2 拍</button><button type="button" data-v="3">3 拍</button><button type="button" data-v="4">4 拍</button></div></div>
     </div>
     <p class="hint">速度變慢時，伴奏音檔也會一起變慢，但音高不變。「每小節幾拍」會改變預備拍和節拍器的重音。「跳過前奏」會從你的聲部開始唱的那一小節開始（只跳過開頭沒有你要唱的音的小節）。</p>
+    <p id="sol-hint" class="hint"></p>
     <div id="prac-parts" class="parts-box" hidden>
       <div class="field"><span>其他聲部陪唱（預設全部開啟，用比導唱小一點的音量一起唱；點聲部可以關掉）</span>
         <div id="part-toggles" class="toggles"></div></div>
@@ -450,7 +452,7 @@ textarea:focus{border-color:var(--gold)}
   <div class="play-bottom">
     <label>伴奏音量<input type="range" id="vol-acc" min="0" max="1.5" step="0.05" value="0.9"></label>
     <label id="lbl-guide">導唱精靈<input type="range" id="vol-guide" min="0" max="1.5" step="0.05" value="0.8"></label>
-    <button id="btn-lyrics" class="btn ghost small" type="button">隱藏歌詞</button>
+    <button id="btn-lyrics" class="btn ghost small" type="button">下方：歌詞</button>
     <label id="lbl-others" hidden>其他聲部<input type="range" id="vol-others" min="0" max="1" step="0.05" value="0.4"></label>
   </div>
 </section>
@@ -620,6 +622,7 @@ textarea:focus{border-color:var(--gold)}
   </div>
   <div class="panel">
     <h3 class="step"><b>3</b>聲部設定</h3>
+    <label class="field" style="max-width:340px"><span>首調唱名的 Do（這首歌的主音）</span><select id="ed-dokey"></select></label>
     <p class="hint">齊唱譜只會有一個練習聲部，學生進去會直接選好。學生要唱的設成「練習聲部」，鋼琴等設成「伴奏」。名稱可以改成「女高音」「女中音」等學生看得懂的名字。</p>
     <div class="tbl-wrap"><table><thead><tr><th>顯示名稱</th><th>用途</th><th>音域</th><th>音符數</th></tr></thead><tbody id="ed-tracks"></tbody></table></div>
   </div>
@@ -691,7 +694,9 @@ const COL = { bg0:'#171236', bg1:'#0e0b22', grid:'rgba(255,255,255,0.05)', gridC
 const STRICT = { easy:{a:40,b:75,c:120}, standard:{a:30,b:60,c:100}, strict:{a:20,b:40,c:70} };
 const STAGE_NAMES = ['月光迴廊','魔藥地窖','星象觀測塔','水晶湖畔','古老書庫','鐘樓頂端','雲上天橋','鏡之長廊','飛龍山谷','螢光森林','風暴城牆','秘密溫室','黎明尖塔','銀河階梯','極光峽谷','時光沙漏'];
 const pc = m => ((Math.round(m) % 12) + 12) % 12;
-const solName = m => SOLF[pc(m)];
+const SOLX = { tonic: 0 };
+const relPc = m => (pc(m) - SOLX.tonic + 12) % 12;
+const solName = m => SOLF[relPc(m)];
 const letName = m => LET[pc(m)] + (Math.floor(Math.round(m) / 12) - 1);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const hexA = (h, a) => { const n = parseInt(h.slice(1), 16); return `rgba(${n>>16},${(n>>8)&255},${n&255},${a})`; };
@@ -780,7 +785,7 @@ function parseMusicXML(text) {
   const names = {};
   const pl = ch(root, 'part-list');
   if (pl) for (const sp of chs(pl, 'score-part')) names[sp.getAttribute('id')] = txt(sp, 'part-name') || txt(sp, 'part-abbreviation');
-  const M = [], parts = [];
+  const M = [], parts = []; let keyFifths = null;
   chs(root, 'part').forEach((pe, pi) => {
     const pid = pe.getAttribute('id');
     let div = 1, beats = 4, bt = 4, curEnding = null;
@@ -795,6 +800,7 @@ function parseMusicXML(text) {
         const nn = el.nodeName;
         if (nn === 'attributes') {
           const d = txt(el, 'divisions'); if (d) div = parseFloat(d) || 1;
+          const ky = ch(el, 'key'); if (ky && keyFifths == null && ch(ky, 'fifths')) keyFifths = parseInt(txt(ky, 'fifths'));
           const t = ch(el, 'time');
           if (t) { beats = txt(t, 'beats').split('+').reduce((s, x) => s + (parseFloat(x) || 0), 0) || 4; bt = parseFloat(txt(t, 'beat-type')) || 4; }
         } else if (nn === 'backup') { pos -= (parseFloat(txt(el, 'duration')) || 0) / div; if (pos < 0) pos = 0; }
@@ -914,7 +920,7 @@ function parseMusicXML(text) {
     trs.forEach((t, idx) => { t.defRole = role; t.defLabel = trs.length > 1 && role === 'sing' ? `${p.name} 第${idx + 1}部` : (trs.length > 1 ? `${p.name} (${idx + 1})` : p.name); });
   });
   if (!tracks.length) throw new Error('樂譜裡沒有找到音符');
-  return { M, seq, seqQ, totalQ, tmap, tracks, groups, parts: parts.map(p => ({ id: p.id, name: p.name })) };
+  return { M, seq, seqQ, totalQ, tmap, tracks, groups, keyFifths: isNaN(keyFifths) ? null : keyFifths, parts: parts.map(p => ({ id: p.id, name: p.name })) };
 }
 
 function makeTimeline(score, cfg) {
@@ -969,6 +975,8 @@ function mscxToMusicXML(text) {
   const frac = s => { const m = /^(-?\d+)\/(\d+)$/.exec((s || '').trim()); return m ? +m[1] / +m[2] : 0; };
   const xesc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   // map parts to score staves in order
+  let kf = null;
+  for (const st of staves) { for (const ks of st.getElementsByTagName('KeySig')) { const v = parseInt(txt(ks, 'concertKey') || txt(ks, 'accidental')); if (!isNaN(v)) { kf = v; break; } } if (kf != null) break; }
   let si = 0;
   const pinfo = parts.map((p, pi) => {
     const n = Math.max(1, chs(p, 'Staff').length);
@@ -1004,7 +1012,7 @@ function mscxToMusicXML(text) {
       xml += `<measure number="${mi + 1}"${len !== meta[mi].nominal ? ' implicit="yes"' : ''}>`;
       if (mi === 0 || ts[mi]) {
         const t = ts[mi] || [4, 4];
-        xml += `<attributes>${mi === 0 ? `<divisions>${DIV}</divisions>` : ''}${mi === 0 && p.staves.length > 1 ? `<staves>${p.staves.length}</staves>` : ''}<time><beats>${t[0]}</beats><beat-type>${t[1]}</beat-type></time></attributes>`;
+        xml += `<attributes>${mi === 0 ? `<divisions>${DIV}</divisions>` : ''}${mi === 0 && kf != null ? `<key><fifths>${kf}</fifths></key>` : ''}${mi === 0 && p.staves.length > 1 ? `<staves>${p.staves.length}</staves>` : ''}<time><beats>${t[0]}</beats><beat-type>${t[1]}</beat-type></time></attributes>`;
       }
       if (pi === 0 && meta[mi].startRep) xml += '<barline location="left"><repeat direction="forward"/></barline>';
       let emitted = 0;
@@ -1112,7 +1120,7 @@ const DB = {
   put(o) { return this.db ? this.req('readwrite', s => s.put(o)) : Promise.reject(new Error('此瀏覽器無法儲存')); },
   del(id) { return this.db ? this.req('readwrite', s => s.delete(id)) : Promise.resolve(); }
 };
-const SONG_FIELDS = ['id','title','xml','audio','audioB64','audioName','audioType','offset','tempoScale','trackCfg','stageSize','jianpu','chords','folder','password','replaces','created'];
+const SONG_FIELDS = ['id','title','xml','audio','audioB64','audioName','audioType','offset','tempoScale','trackCfg','stageSize','jianpu','chords','folder','password','replaces','doKey','created'];
 const plainSong = s => { const o = {}; for (const k of SONG_FIELDS) if (s[k] !== undefined) o[k] = s[k]; return o; };
 const hasAudio = s => !!(s.audio || s.audioB64);
 function getScore(s) { if (!s._score) s._score = parseMusicXML(s.xml); return s._score; }
@@ -1263,8 +1271,8 @@ function drawRoll(cv, o) {
   const y = m => padT + (hi - m) * rowH;
   const x = o.x, tL = o.tL, tR = o.tR;
   for (let m = Math.ceil(lo); m <= Math.floor(hi); m++) {
-    if (!NAT[pc(m)]) { g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(gut, y(m) - rowH / 2, W - gut, rowH); }
-    if (pc(m) === 0) { g.fillStyle = COL.gridC; g.fillRect(gut, y(m) + rowH / 2 - 0.5, W - gut, 1); }
+    if (!NAT[relPc(m)]) { g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(gut, y(m) - rowH / 2, W - gut, rowH); }
+    if (relPc(m) === 0) { g.fillStyle = COL.gridC; g.fillRect(gut, y(m) + rowH / 2 - 0.5, W - gut, 1); }
   }
   g.font = '700 12px Cinzel,serif'; g.textAlign = 'left'; g.textBaseline = 'top';
   for (const m of o.tl.measures) {
@@ -1329,9 +1337,9 @@ function drawRoll(cv, o) {
   g.textAlign = 'right'; g.textBaseline = 'middle';
   const step = rowH < 14 ? 2 : 1;
   for (let m = Math.ceil(lo); m <= Math.floor(hi); m++) {
-    if (!NAT[pc(m)]) continue;
-    if (step === 2 && ![0, 4, 7].includes(pc(m))) continue;
-    g.fillStyle = pc(m) === 0 ? COL.gold : COL.ink;
+    if (!NAT[relPc(m)]) continue;
+    if (step === 2 && ![0, 4, 7].includes(relPc(m))) continue;
+    g.fillStyle = relPc(m) === 0 ? COL.gold : COL.ink;
     g.font = '700 13px Cinzel,serif'; g.fillText(solName(m), gut - 26, y(m));
     g.fillStyle = COL.muted; g.font = '500 10px Cinzel,serif'; g.fillText(letName(m), gut - 6, y(m));
   }
@@ -1449,8 +1457,8 @@ function drawGame(cv, o) {
   const y = m => padT + (hi - m) * rowH;
   const x = o.x, tL = o.tL, tR = o.tR;
   for (let m = Math.ceil(lo); m <= Math.floor(hi); m++) {
-    if (!NAT[pc(m)]) continue;
-    g.fillStyle = pc(m) === 0 ? 'rgba(246,220,148,0.28)' : 'rgba(255,255,255,0.06)';
+    if (!NAT[relPc(m)]) continue;
+    g.fillStyle = relPc(m) === 0 ? 'rgba(246,220,148,0.28)' : 'rgba(255,255,255,0.06)';
     g.fillRect(gut, y(m) - 0.5, W - gut, 1);
   }
   g.font = '700 12px Cinzel,serif'; g.textAlign = 'left'; g.textBaseline = 'top';
@@ -1478,7 +1486,8 @@ function drawGame(cv, o) {
     gr.addColorStop(0, hexA('#ffffff', 0.5 * alpha)); gr.addColorStop(0.4, hexA(base.startsWith('#') ? base : '#ffffff', 0.85 * alpha)); gr.addColorStop(1, hexA(base.startsWith('#') ? base : '#ffffff', 0.45 * alpha));
     g.fillStyle = gr; roundRect(g, x0, yy, w, bh, bh / 2); g.fill();
     if (isAct) { g.strokeStyle = 'rgba(255,248,224,0.9)'; g.lineWidth = 2; g.stroke(); g.restore(); }
-    if (n.lyric && o.showLyrics) { g.fillStyle = alpha < 1 ? 'rgba(239,227,198,0.45)' : COL.ink; g.textBaseline = 'top'; g.fillText(n.lyric, x0 + 3, yy + bh + 4); }
+    const lab = o.under === 'solfege' ? solName(n.midi) : o.under === 'lyrics' ? n.lyric : '';
+    if (lab) { g.fillStyle = alpha < 1 ? 'rgba(239,227,198,0.45)' : (o.under === 'solfege' ? COL.gold : COL.ink); g.textBaseline = 'top'; g.fillText(lab, x0 + 3, yy + bh + 4); }
   }
   for (const d of o.dust) {
     if (d.t < tL || d.t > tR || d.got) continue;
@@ -1524,9 +1533,9 @@ function drawGame(cv, o) {
   g.textAlign = 'right'; g.textBaseline = 'middle';
   const step = rowH < 14 ? 2 : 1;
   for (let m = Math.ceil(lo); m <= Math.floor(hi); m++) {
-    if (!NAT[pc(m)]) continue;
-    if (step === 2 && ![0, 4, 7].includes(pc(m))) continue;
-    g.fillStyle = pc(m) === 0 ? COL.gold : COL.ink;
+    if (!NAT[relPc(m)]) continue;
+    if (step === 2 && ![0, 4, 7].includes(relPc(m))) continue;
+    g.fillStyle = relPc(m) === 0 ? COL.gold : COL.ink;
     g.font = '700 13px Cinzel,serif'; g.fillText(solName(m), gut - 26, y(m));
     g.fillStyle = COL.muted; g.font = '500 10px Cinzel,serif'; g.fillText(letName(m), gut - 6, y(m));
   }
@@ -1563,6 +1572,7 @@ class Session {
       el.preservesPitch = true; el.mozPreservesPitch = true; el.webkitPreservesPitch = true;
       await new Promise(res => { const tm = setTimeout(res, 4000); const done = () => { clearTimeout(tm); res(); }; el.addEventListener('loadedmetadata', done, { once: true }); el.addEventListener('error', done, { once: true }); el.load(); });
     }
+    SOLX.tonic = this.solMode === 'movable' ? songTonic(this.song) : 0;
     let [k0, k1] = this.range;
     if (this.skipIntro) {
       const a = tl.measures[k0].t0, b = tl.measures[k1].t1;
@@ -1767,7 +1777,7 @@ class Session {
     const geo = drawGame(cv, {
       sess: this, tl: this.tl, notes: this.notes, others: this.others, color: this.track.color, lo: this.view.lo, hi: this.view.hi,
       x: xf, tL: visT - playX / pps, tR: visT + (W - playX) / pps, playX, t: visT, pps, clock: now,
-      frames: this.frames, dust: this.dust, onKeys: this.onKeys, showLyrics: this.showLyrics !== false,
+      frames: this.frames, dust: this.dust, onKeys: this.onKeys, under: this.under || 'lyrics',
       bird: { m: this.birdM, phase: this.birdPhase, tilt: this.birdTilt, state: !this.mic ? 2 : (target != null && this.cur ? this.cur.ok : null), voiced: target != null },
       noteScore: n => (n.t1 < visT && n.lt > 2) ? n.lh / n.lt / 0.85 : null
     });
@@ -2027,6 +2037,7 @@ function openSong(s) {
 /* ----- map ----- */
 function renderMap() {
   if (!S.song) return;
+  SOLX.tonic = 0;
   const tl = S.tl;
   $('#map-title').textContent = S.song.title || '未命名歌曲';
   const pl = $('#part-list'); pl.innerHTML = '';
@@ -2139,7 +2150,7 @@ async function startPractice() {
   show('play');
   try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
   const ptl = getTLAt(S.song, prac.rate);
-  const sess = S.session = new Session({ song: S.song, tl: ptl, track: ptl.tracks[S.trackIdx], rate: prac.rate, metro: prac.metro, beatsOverride: prac.beats, skipIntro: prac.skipIntro, showLyrics: prac.showLyrics, onKeys: new Set(othersOn(ptl, S.trackIdx).map(t => t.key)), othersVol: prac.ovol, range: S.range.slice(), mode: S.mode, stage: Object.assign({}, S.stage), canvas: $('#cv-play'), mic: true,
+  const sess = S.session = new Session({ song: S.song, tl: ptl, track: ptl.tracks[S.trackIdx], rate: prac.rate, metro: prac.metro, beatsOverride: prac.beats, skipIntro: prac.skipIntro, under: prac.under, solMode: prac.solMode, onKeys: new Set(othersOn(ptl, S.trackIdx).map(t => t.key)), othersVol: prac.ovol, range: S.range.slice(), mode: S.mode, stage: Object.assign({}, S.stage), canvas: $('#cv-play'), mic: true,
     onEnd: (cutoff, early) => endPractice(sess, cutoff, early) });
   try { await sess.start(); }
   catch (e) { renderMap(); show('map'); err.hidden = false; err.textContent = '無法播放：' + e.message; }
@@ -2364,7 +2375,7 @@ function jianpuToMusicXML(J) {
       const len = b - a;
       xml += `<measure number="${pickup ? mi : mi + 1}"${Math.abs(len - tsl) > 1e-6 ? ' implicit="yes"' : ''}>`;
       if (mi === 0) {
-        xml += `<attributes><divisions>${DIV}</divisions><time><beats>${meta.ts[0]}</beats><beat-type>${meta.ts[1]}</beat-type></time></attributes>`;
+        xml += `<attributes><divisions>${DIV}</divisions><key><fifths>${[0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5].indexOf(((meta.tonic % 12) + 12) % 12) > 6 ? [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5].indexOf(((meta.tonic % 12) + 12) % 12) - 12 : [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5].indexOf(((meta.tonic % 12) + 12) % 12)}</fifths></key><time><beats>${meta.ts[0]}</beats><beat-type>${meta.ts[1]}</beat-type></time></attributes>`;
         if (pi === 0) xml += `<direction><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>${meta.bpm}</per-minute></metronome></direction-type><sound tempo="${meta.bpm}"/></direction>`;
       }
       if (pi === 0 && near(p0.repF, a)) xml += '<barline location="left"><repeat direction="forward"/></barline>';
@@ -2745,7 +2756,7 @@ $('#btn-clear-rec').addEventListener('click', e => armButton(e.currentTarget, '�
 
 function folderPassword(s) { return normPw((settings.folderPw || {})[s.folder || ''] || s.password || ''); }
 async function packSong(s, forStudent) {
-  const o = { app: 'choir-pitch-challenge', v: 1, title: s.title, xml: s.xml, offset: s.offset || 0, tempoScale: s.tempoScale || 1, trackCfg: s.trackCfg || {}, stageSize: s.stageSize || 4, jianpu: s.jianpu || '', chords: s.chords || '', folder: s.folder || '' };
+  const o = { app: 'choir-pitch-challenge', v: 1, title: s.title, xml: s.xml, offset: s.offset || 0, tempoScale: s.tempoScale || 1, trackCfg: s.trackCfg || {}, stageSize: s.stageSize || 4, jianpu: s.jianpu || '', chords: s.chords || '', folder: s.folder || '', doKey: s.doKey ?? '' };
   if (s.audioB64) { o.audioB64 = s.audioB64; }
   else if (s.audio) o.audioB64 = await abToB64(s.audio);
   if (o.audioB64) { o.audioName = s.audioName || ''; o.audioType = s.audioType || ''; }
@@ -2766,7 +2777,7 @@ $('#inp-import').addEventListener('change', async e => {
       for (const o of (Array.isArray(data) ? data : [data])) {
         if (!o || typeof o.xml !== 'string') throw new Error(o && o.locked ? '這是加密的學生版歌曲，請匯入未加密的歌曲包' : '不是歌曲包檔案');
         parseMusicXML(o.xml);
-        const s = { id: 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), title: o.title || '匯入的歌曲', xml: o.xml, offset: +o.offset || 0, tempoScale: +o.tempoScale || 1, trackCfg: o.trackCfg || {}, stageSize: +o.stageSize || 4, jianpu: o.jianpu || '', chords: o.chords || '', folder: o.folder || '', created: Date.now() };
+        const s = { id: 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), title: o.title || '匯入的歌曲', xml: o.xml, offset: +o.offset || 0, tempoScale: +o.tempoScale || 1, trackCfg: o.trackCfg || {}, stageSize: +o.stageSize || 4, jianpu: o.jianpu || '', chords: o.chords || '', folder: o.folder || '', doKey: o.doKey ?? '', created: Date.now() };
         if (s.folder && !validFolderName(s.folder)) { settings.folders = settings.folders || []; settings.folders.push(s.folder); saveSettings(); }
         if (o.audioB64) { s.audio = b64ToAb(o.audioB64); s.audioName = o.audioName || ''; s.audioType = o.audioType || ''; }
         await DB.put(plainSong(s)); S.songs.push(s); n++;
@@ -2849,6 +2860,7 @@ function refreshEditor() {
   if (prevF && +prevF < tl.measures.length) pvF.value = prevF;
   drawPreviewStatic();
   renderLyrics();
+  renderDoKey();
 }
 
 function drawPreviewStatic() {
@@ -2964,7 +2976,8 @@ $('#ed-photo').addEventListener('change', e => { const files = Array.from(e.targ
 ocrInit();
 
 
-let prac = Object.assign({ rate: 1, metro: false, beats: 0, partsOff: [], ovol: 0.4, skipIntro: true, showLyrics: true }, LS.get('cpc-practice', {}));
+let prac = Object.assign({ rate: 1, metro: false, beats: 0, partsOff: [], ovol: 0.4, skipIntro: true, showLyrics: true, solMode: 'fixed' }, LS.get('cpc-practice', {}));
+if (!prac.under) prac.under = prac.showLyrics === false ? 'none' : 'lyrics';
 const othersOn = (tl, idx) => tl.tracks.filter((t, i) => t.role === 'sing' && i !== idx && !(prac.partsOff || []).includes(t.key));
 function renderPrac() {
   $('#prac-rate').value = prac.rate;
@@ -2972,7 +2985,9 @@ function renderPrac() {
   $('#rate-lbl').textContent = `${Math.round(prac.rate * 100)}%（每分鐘 ${Math.round(base * prac.rate)} 拍）`;
   $$('#seg-metro button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.v === (prac.metro ? 1 : 0))));
   $$('#seg-beats button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.v === (prac.beats || 0))));
-  $$('#seg-lyrics button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.v === (prac.showLyrics ? 1 : 0))));
+  $$('#seg-under button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === prac.under)));
+  $$('#seg-sol button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === prac.solMode)));
+  if (S.song) { const t = songTonic(S.song); $('#sol-hint').textContent = prac.solMode === 'movable' ? `首調唱名：這首歌是 ${KEYN[t]} 大調（或 ${KEYN[(t + 9) % 12]} 小調），${KEYN[t]} 唱 Do。左邊的音高刻度和音符下方都會換成首調唱名。` : '固定唱名：C 唱 Do、D 唱 Re，不管歌曲是什麼調。'; }
   $$('#seg-skip button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.v === (prac.skipIntro ? 1 : 0))));
   if (S.tl) { const m = S.tl.measures[Math.min(1, S.tl.measures.length - 1)]; $('#beats-auto').textContent = `照樂譜（${m.ts[0]}/${m.ts[1]}）`; }
   const box = $('#prac-parts'), tg = $('#part-toggles');
@@ -3017,9 +3032,10 @@ $('#btn-ovol-test').addEventListener('click', () => {
 });
 $('#prac-rate').addEventListener('input', e => { prac.rate = Math.round(+e.target.value * 100) / 100; LS.set('cpc-practice', prac); renderPrac(); });
 $$('#seg-metro button').forEach(b => b.addEventListener('click', () => { prac.metro = b.dataset.v === '1'; LS.set('cpc-practice', prac); renderPrac(); }));
-$$('#seg-lyrics button').forEach(b => b.addEventListener('click', () => { prac.showLyrics = b.dataset.v === '1'; LS.set('cpc-practice', prac); renderPrac(); }));
-function setLyricBtn() { $('#btn-lyrics').textContent = prac.showLyrics ? '隱藏歌詞' : '顯示歌詞'; $('#btn-lyrics').setAttribute('aria-pressed', String(!!prac.showLyrics)); }
-$('#btn-lyrics').addEventListener('click', () => { prac.showLyrics = !prac.showLyrics; LS.set('cpc-practice', prac); if (S.session) S.session.showLyrics = prac.showLyrics; setLyricBtn(); });
+$$('#seg-under button').forEach(b => b.addEventListener('click', () => { prac.under = b.dataset.v; LS.set('cpc-practice', prac); renderPrac(); }));
+$$('#seg-sol button').forEach(b => b.addEventListener('click', () => { prac.solMode = b.dataset.v; LS.set('cpc-practice', prac); renderPrac(); }));
+function setLyricBtn() { $('#btn-lyrics').textContent = { lyrics: '下方：歌詞', solfege: '下方：唱名', none: '下方：不顯示' }[prac.under] || '下方：歌詞'; }
+$('#btn-lyrics').addEventListener('click', () => { const order = ['lyrics', 'solfege', 'none']; prac.under = order[(order.indexOf(prac.under) + 1) % 3]; LS.set('cpc-practice', prac); if (S.session) S.session.under = prac.under; setLyricBtn(); });
 $$('#seg-skip button').forEach(b => b.addEventListener('click', () => { prac.skipIntro = b.dataset.v === '1'; LS.set('cpc-practice', prac); renderPrac(); }));
 $$('#seg-beats button').forEach(b => b.addEventListener('click', () => { prac.beats = +b.dataset.v; LS.set('cpc-practice', prac); renderPrac(); }));
 $('#sel-breath').addEventListener('change', e => { settings.breath = +e.target.value; saveSettings(); });
@@ -3175,7 +3191,7 @@ async function decryptPack(lk, pw) {
 const isLocked = s => !!(s.locked && !s.xml);
 async function unlockSong(s, pw) {
   const o = await decryptPack(s.locked, pw);
-  Object.assign(s, { xml: o.xml, audioB64: o.audioB64 || null, audioName: o.audioName, audioType: o.audioType, offset: +o.offset || 0, tempoScale: +o.tempoScale || 1, trackCfg: o.trackCfg || {}, stageSize: +o.stageSize || 4, jianpu: o.jianpu || '', chords: o.chords || '', password: normPw(pw) });
+  Object.assign(s, { xml: o.xml, audioB64: o.audioB64 || null, audioName: o.audioName, audioType: o.audioType, offset: +o.offset || 0, tempoScale: +o.tempoScale || 1, trackCfg: o.trackCfg || {}, stageSize: +o.stageSize || 4, jianpu: o.jianpu || '', chords: o.chords || '', doKey: o.doKey ?? '', password: normPw(pw) });
   s._tl = null; s._score = null; s._tlr = null;
   const mem = LS.get('cpc-unlocked', {}); mem[s.locked.salt] = normPw(pw); LS.set('cpc-unlocked', mem);
 }
@@ -3288,13 +3304,42 @@ function enterAcademy(folder) {
 }
 $('#btn-start-game').addEventListener('click', () => { renderAcademy(); show('academy'); });
 
+
+/* ----- key / movable-do helpers ----- */
+const KEYN = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+function estimateTonic(sc) {
+  const sing = sc.tracks.filter(t => t.defRole === 'sing').sort((a, b) => b.avg - a.avg);
+  const tr = sing[0] || sc.tracks[0]; if (!tr || !tr.notes.length) return 0;
+  const lastN = tr.notes[tr.notes.length - 1];
+  let best = null;
+  for (let t = 0; t < 12; t++) {
+    let s = 0; for (const n of tr.notes) if (MAJ.includes((pc(n.midi) - t + 12) % 12)) s += n.dq;
+    if (pc(lastN.midi) === t) s += 4;
+    if (pc(tr.notes[0].midi) === t || pc(tr.notes[0].midi) === (t + 7) % 12) s += 1;
+    if (!best || s > best.s) best = { t, s };
+  }
+  return best.t;
+}
+function autoTonic(s) { const sc = getScore(s); return sc.keyFifths != null ? ((sc.keyFifths * 7) % 12 + 12) % 12 : estimateTonic(sc); }
+function songTonic(s) {
+  if (s.doKey !== undefined && s.doKey !== null && s.doKey !== '') return ((+s.doKey % 12) + 12) % 12;
+  try { return autoTonic(s); } catch (e) { return 0; }
+}
+function renderDoKey() {
+  const sel = $('#ed-dokey'); if (!ED.song || !ED.song.xml) { sel.innerHTML = ''; return; }
+  let auto = 0; try { auto = autoTonic(ED.song); } catch (e) {}
+  sel.innerHTML = `<option value="">自動（判斷為 ${KEYN[auto]} 大調／${KEYN[(auto + 9) % 12]} 小調）</option>` + KEYN.map((k, i) => `<option value="${i}">${k} 大調／${KEYN[(i + 9) % 12]} 小調（${k} 唱 Do）</option>`).join('');
+  sel.value = ED.song.doKey === undefined || ED.song.doKey === null ? '' : String(ED.song.doKey);
+}
+$('#ed-dokey').addEventListener('change', e => { ED.song.doKey = e.target.value === '' ? '' : +e.target.value; });
+
 /* ================= boot ================= */
 function sortSongs() { S.songs.sort((a, b) => folderIdx(a) - folderIdx(b) || (a.embedded ? 0 : 1) - (b.embedded ? 0 : 1) || (a.created || 0) - (b.created || 0)); }
 async function boot() {
   const songs = [];
   try {
     const emb = JSON.parse($('#embedded-songs').textContent || '[]');
-    emb.forEach((o, i) => songs.push(o.locked ? { id: 'emb' + i, embedded: true, title: o.title, folder: o.folder || '', locked: o.locked, created: i } : { id: 'emb' + i, embedded: true, title: o.title, xml: o.xml, audioB64: o.audioB64 || null, audioName: o.audioName, audioType: o.audioType, offset: +o.offset || 0, tempoScale: +o.tempoScale || 1, trackCfg: o.trackCfg || {}, stageSize: +o.stageSize || 4, jianpu: o.jianpu || '', chords: o.chords || '', folder: o.folder || '', created: i }));
+    emb.forEach((o, i) => songs.push(o.locked ? { id: 'emb' + i, embedded: true, title: o.title, folder: o.folder || '', locked: o.locked, created: i } : { id: 'emb' + i, embedded: true, title: o.title, xml: o.xml, audioB64: o.audioB64 || null, audioName: o.audioName, audioType: o.audioType, offset: +o.offset || 0, tempoScale: +o.tempoScale || 1, trackCfg: o.trackCfg || {}, stageSize: +o.stageSize || 4, jianpu: o.jianpu || '', chords: o.chords || '', folder: o.folder || '', doKey: o.doKey ?? '', created: i }));
   } catch (e) {}
   await autoUnlock(songs);
   try { await DB.open(); (await DB.all()).forEach(s => songs.push(s)); }

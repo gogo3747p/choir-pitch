@@ -3183,24 +3183,33 @@ async function autoUnlock(songs) {
   const mem = LS.get('cpc-unlocked', {});
   for (const s of songs) if (isLocked(s) && mem[s.locked.salt]) { try { await unlockSong(s, mem[s.locked.salt]); } catch (e) {} }
 }
-let unlockTarget = null;
-function openUnlock(s) {
-  unlockTarget = s;
-  $('#unlock-song').textContent = `「${folderName(s.folder || '')}」資料夾`;
+let unlockTarget = null, unlockCtx = null;
+function openUnlock(s, ctx) {
+  unlockTarget = s; unlockCtx = ctx || null;
+  const folder = ctx ? ctx.folder : (s.folder || '');
+  $('#unlock-title').textContent = ctx ? `${folder}學院需要密碼` : '這個資料夾上了鎖';
+  $('#unlock-song').textContent = ctx ? `「${folder}」學院` : `「${folderName(folder)}」資料夾`;
   $('#unlock-pw').value = ''; $('#unlock-msg').textContent = ''; $('#unlock-msg').className = 'hint';
   $('#unlock-modal').hidden = false; setTimeout(() => $('#unlock-pw').focus(), 50);
 }
-function closeUnlock() { $('#unlock-modal').hidden = true; unlockTarget = null; }
+function closeUnlock() { $('#unlock-modal').hidden = true; unlockTarget = null; unlockCtx = null; }
 async function tryUnlock() {
-  const s = unlockTarget; if (!s) return;
+  const s = unlockTarget, ctx = unlockCtx; if (!s && !ctx) return;
   const pw = $('#unlock-pw').value, msg = $('#unlock-msg');
   if (!normPw(pw)) { msg.className = 'err-msg'; msg.textContent = '請輸入密碼。'; return; }
   if (!window.crypto || !crypto.subtle) { msg.className = 'err-msg'; msg.textContent = '這個瀏覽器不能解鎖，請用 Chrome 開啟 https 的網址。'; return; }
   $('#btn-unlock').disabled = true; msg.className = 'hint'; msg.textContent = '解鎖中…';
   try {
-    await unlockSong(s, pw);
-    for (const o of S.songs) if (o !== s && isLocked(o) && (o.folder || '') === (s.folder || '')) { try { await unlockSong(o, pw); } catch (e) {} }
-    closeUnlock(); renderHome(); if (s.title) openSong(s);
+    if (s) {
+      await unlockSong(s, pw);
+      for (const o of S.songs) if (o !== s && isLocked(o) && (o.folder || '') === (s.folder || '')) { try { await unlockSong(o, pw); } catch (e) {} }
+    } else {
+      if (normPw(pw) !== ctx.plain) throw new Error('wrong');
+      const ok = LS.get('cpc-acad-ok', {}); ok[ctx.folder] = ctx.plain; LS.set('cpc-acad-ok', ok);
+    }
+    closeUnlock();
+    if (ctx) goAcademy(ctx.folder);
+    else { renderHome(); if (s.title) openSong(s); }
   }
   catch (e) { msg.className = 'err-msg'; msg.textContent = '密碼不對，請再試一次。'; $('#unlock-pw').select(); }
   finally { $('#btn-unlock').disabled = false; }
@@ -3265,9 +3274,17 @@ function renderAcademy() {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'acad';
     b.setAttribute('aria-label', `${a.folder}學院，${n} 首歌${locked ? '，需要密碼' : ''}`);
     b.innerHTML = `<img src="${IMG[a.img]}" alt=""><b>${esc(a.folder)}</b><small>${locked ? LOCK.replace('#8a84a8', 'currentColor') : ''}${n ? n + ' 首歌' : '尚無歌曲'}</small>`;
-    b.addEventListener('click', () => { curAcademy = a.folder; LS.set('cpc-academy', a.folder); renderHome(); show('home'); });
+    b.addEventListener('click', () => enterAcademy(a.folder));
     g.appendChild(b);
   }
+}
+function goAcademy(folder) { curAcademy = folder; LS.set('cpc-academy', folder); renderAcademy(); renderHome(); show('home'); }
+function enterAcademy(folder) {
+  const locked = S.songs.filter(s => isLocked(s) && folderOf(s) === folder);
+  if (locked.length) { openUnlock(locked[0], { folder }); return; }
+  const pw = normPw((settings.folderPw || {})[folder] || '');
+  if (pw && !S.teacherOK && LS.get('cpc-acad-ok', {})[folder] !== pw) { openUnlock(null, { folder, plain: pw }); return; }
+  goAcademy(folder);
 }
 $('#btn-start-game').addEventListener('click', () => { renderAcademy(); show('academy'); });
 

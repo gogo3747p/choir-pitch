@@ -113,6 +113,8 @@ h1,h2,h3{margin:0;text-wrap:balance;line-height:1.25;font-family:var(--f-head)}
 .start p.sub{color:var(--parch);text-shadow:0 2px 10px rgba(0,0,0,.8)}
 .btn.start-btn{font-size:clamp(22px,3vw,30px);padding:18px 56px;border-radius:999px;letter-spacing:.12em;box-shadow:0 0 0 1px rgba(255,236,180,.6) inset,0 0 40px rgba(246,220,148,.45),0 10px 30px rgba(0,0,0,.5);animation:glowpulse 2.6s ease-in-out infinite}
 @keyframes glowpulse{0%,100%{box-shadow:0 0 0 1px rgba(255,236,180,.6) inset,0 0 26px rgba(246,220,148,.35),0 10px 30px rgba(0,0,0,.5)}50%{box-shadow:0 0 0 1px rgba(255,236,180,.8) inset,0 0 56px rgba(246,220,148,.7),0 10px 30px rgba(0,0,0,.5)}}
+.tut-link{color:var(--gold-hi);font-weight:700;text-decoration:none;border-bottom:1px solid rgba(246,220,148,.5);padding-bottom:2px;text-shadow:0 2px 8px rgba(0,0,0,.8)}
+.tut-link:hover{color:#fff6dc}
 .acad-title{text-align:center;display:flex;flex-direction:column;gap:6px;padding-top:12px}
 .acad-title h2{font-size:clamp(28px,4.4vw,44px);font-weight:900;background:linear-gradient(180deg,#fff6dc 10%,var(--gold) 90%);-webkit-background-clip:text;background-clip:text;color:transparent}
 .acad-grid{display:flex;flex-wrap:wrap;justify-content:center;gap:clamp(14px,2.4vw,28px)}
@@ -323,6 +325,7 @@ textarea:focus{border-color:var(--gold)}
   <h1>星韻魔法學院</h1>
   <p class="sub">用歌聲施展咒語，唱準每一個音，點亮你的星星。</p>
   <button id="btn-start-game" class="btn primary start-btn" type="button">開始遊戲</button>
+  <a id="lnk-tut" class="tut-link" href="tutorial.html" target="_blank" rel="noopener" hidden>第一次玩？看教學動畫 →</a>
 </section>
 
 <section id="scr-academy" class="screen" hidden>
@@ -3302,6 +3305,7 @@ function enterAcademy(folder) {
   if (pw && !S.teacherOK && LS.get('cpc-acad-ok', {})[folder] !== pw) { openUnlock(null, { folder, plain: pw }); return; }
   goAcademy(folder);
 }
+if (!CL && /^https?:$/.test(location.protocol)) $('#lnk-tut').hidden = false;
 $('#btn-start-game').addEventListener('click', () => { renderAcademy(); show('academy'); });
 
 

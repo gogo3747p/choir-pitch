@@ -313,6 +313,31 @@ textarea:focus{border-color:var(--gold)}
 @media (max-width:760px){.setup-grid{grid-template-columns:1fr}}
 .step{font-size:18px;font-weight:900;display:flex;align-items:center;gap:10px;font-family:var(--f-head)}
 .step b{font-family:var(--f-rune);width:30px;height:30px;border-radius:50%;background:var(--gold);color:var(--gold-ink);display:grid;place-items:center;font-size:16px;line-height:1}
+.wiz-card{display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:linear-gradient(120deg,rgba(157,134,255,.16),rgba(226,189,98,.08));border:1px solid rgba(157,134,255,.45);border-radius:var(--r);padding:12px 18px}
+.wiz-card .av{width:78px;height:94px;flex:none}
+.wiz-card .pet{width:84px;height:70px;flex:none}
+.wiz-card .wi{flex:1 1 220px;min-width:0;display:flex;flex-direction:column;gap:4px}
+.wiz-card .wn{font-family:var(--f-head);font-weight:900;font-size:19px;color:var(--gold-hi)}
+.wiz-card .wn small{font-family:var(--f-rune);font-size:13px;color:var(--glow);margin-right:8px;letter-spacing:.06em}
+.wiz-card .wl{font-size:14px;color:var(--muted)}
+.xpbar{height:12px;border-radius:99px;background:rgba(0,0,0,.4);border:1px solid var(--rim);overflow:hidden}
+.xpbar i{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,#f6dc94,#e2bd62 60%,#ffcf4a);box-shadow:0 0 10px rgba(246,220,148,.7);transition:width 1.2s cubic-bezier(.2,.8,.2,1)}
+.wiz-card .petname{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--muted)}
+.wiz-card .petname input{width:110px;padding:3px 8px;font-size:14px}
+.wiz-card details{flex-basis:100%;font-size:14px;color:var(--muted)}
+.wiz-card summary{cursor:pointer;color:var(--gold-hi)}
+.pet-pick{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}.pet-pick button{display:flex;flex-direction:column;align-items:center;gap:0;background:rgba(0,0,0,.28);border:1px solid var(--rim);border-radius:10px;padding:4px 6px;color:var(--muted);font-size:12px;line-height:1.25;min-width:72px}.pet-pick button[aria-pressed="true"]{border-color:var(--gold);background:rgba(226,189,98,.18);color:var(--gold-hi)}.pet-pick button:disabled{opacity:.45}.pet-pick canvas{width:60px;height:46px}
+.lv-table{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;margin-top:8px}
+.lv-table span{background:rgba(0,0,0,.25);border-radius:8px;padding:4px 10px}
+.lv-table span.on{background:rgba(226,189,98,.25);color:var(--gold-hi);font-weight:700}
+#scr-academy .wiz-card{max-width:760px;margin:0 auto;width:100%}
+.res-wiz{display:flex;gap:14px;align-items:center;flex-wrap:wrap;background:rgba(0,0,0,.25);border:1px solid rgba(226,189,98,.4);border-radius:14px;padding:12px 16px;margin-top:10px}
+.res-wiz .av{width:70px;height:84px;flex:none}
+.res-wiz .rw{flex:1 1 240px;min-width:0;display:flex;flex-direction:column;gap:6px}
+.res-wiz .coins{font-size:16px}.res-wiz .coins b{font-family:var(--f-rune);color:var(--gold-hi);font-size:22px}
+.lvup{font-family:var(--f-head);font-weight:900;font-size:20px;color:#fff6dc;background:linear-gradient(90deg,#7a4ee0,#e2bd62);border-radius:10px;padding:6px 14px;text-shadow:0 1px 4px rgba(0,0,0,.4);animation:lvpop .7s ease-out both}
+@keyframes lvpop{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.08);opacity:1}100%{transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){.lvup{animation:none}.xpbar i{transition:none}}
 @media (prefers-reduced-motion:reduce){.node.next,.countdown b,.combo.bump,.res-stars svg.on{animation:none}.book,.btn{transition:none}}
 </style>
 </head>
@@ -333,6 +358,7 @@ textarea:focus{border-color:var(--gold)}
 <section id="scr-academy" class="screen" hidden>
   <div class="topbar" style="justify-content:space-between"><button class="btn ghost small" type="button" data-go="start">← 回大廳</button><button class="btn ghost small to-teacher" type="button">教授辦公室</button></div>
   <div class="acad-title"><p class="eyebrow">Choose your academy</p><h2>請選擇一個學院</h2></div>
+  <div class="wiz-card" data-wiz></div>
   <div id="acad-grid" class="acad-grid"></div>
 </section>
 
@@ -365,8 +391,9 @@ textarea:focus{border-color:var(--gold)}
   <div class="roster">
     <label for="inp-name">巫師名冊</label>
     <input type="text" id="inp-name" maxlength="20" placeholder="寫下你的名字或座號，例如：5年3班 12號 小美">
-    <small>闖關進度和星星會記在你的名字底下。</small>
+    <small>闖關進度、星星和魔法師等級都會記在你的名字底下。</small>
   </div>
+  <div class="wiz-card" data-wiz></div>
   <div id="home-msg" class="notice warn" hidden></div>
   <h2 class="sec-title">選一本試煉之書 <span>Choose your spellbook</span></h2>
   <div id="folder-bar" class="shelf" hidden></div>
@@ -400,6 +427,7 @@ textarea:focus{border-color:var(--gold)}
   <div class="panel">
     <h3 class="ptitle">練習設定 <span>Practice</span></h3>
     <div class="prac-row">
+      <div class="field fit"><span>遊戲模式</span><div class="seg" id="seg-game"><button type="button" data-v="coin">🪙 寵物吃金幣</button><button type="button" data-v="dust">✦ 收集星塵</button></div></div>
       <label class="field"><span>速度 <b id="rate-lbl">100%</b></span><input type="range" id="prac-rate" min="0.5" max="1.2" step="0.05" value="1"></label>
       <div class="field fit"><span>節拍器</span><div class="seg" id="seg-metro"><button type="button" data-v="1">開</button><button type="button" data-v="0">關</button></div></div>
       <div class="field fit"><span>音符下方</span><div class="seg" id="seg-under"><button type="button" data-v="lyrics">歌詞</button><button type="button" data-v="solfege">唱名</button><button type="button" data-v="none">隱藏</button></div></div>
@@ -450,7 +478,7 @@ textarea:focus{border-color:var(--gold)}
   </div>
   <div class="stage">
     <canvas id="cv-play"></canvas>
-    <div class="dust-chip">✦ 星塵<b id="dust-count">0 / 0</b></div>
+    <div class="dust-chip"><span id="dust-lbl">✦ 星塵</span><b id="dust-count">0 / 0</b></div>
     <div id="combo" class="combo" hidden></div>
     <div id="countdown" class="countdown" hidden></div>
     <div id="now-note" class="now-note" hidden></div>
@@ -479,8 +507,9 @@ textarea:focus{border-color:var(--gold)}
         <div class="stat o"><b id="st-o">0</b><span>差一點點</span></div>
         <div class="stat b"><b id="st-b">0</b><span>咒語失誤</span></div>
         <div class="stat c"><b id="st-c">0</b><span>最高連擊</span></div>
-        <div class="stat d"><b id="st-d">0</b><span>收集星塵</span></div>
+        <div class="stat d"><b id="st-d">0</b><span id="st-d-lbl">收集星塵</span></div>
       </div>
+      <div id="res-wiz" class="res-wiz" hidden></div>
       <p id="res-best" class="hint"></p>
     </div>
   </div>
@@ -1430,8 +1459,12 @@ function makeScene(W, H, dpr) {
   sc.clouds = Array.from({ length: 6 }, (_, i) => ({ x: i * 280 + rnd() * 120, y: H * (0.1 + rnd() * 0.5), s: 0.7 + rnd() * 0.9 }));
   return sc;
 }
-function drawBird(g, x, y, s, col, phase, tilt, state) {
+function drawBird(g, x, y, s, col, phase, tilt, state, pet) {
+  const lv = pet ? pet.lv : 1, chomp = pet ? pet.chomp || 0 : 0;
+  const phx = pet && pet.kind === 'phoenix'; if (phx) col = '#ff6a3d';
   g.save(); g.translate(x, y); g.rotate(tilt); g.scale(s, s);
+  if (lv >= 5) { const t = (performance.now() / 1000), rr = 30 + Math.sin(t * 3) * 3; const ag = g.createRadialGradient(0, 0, 8, 0, 0, rr + 10); ag.addColorStop(0, phx ? 'rgba(255,170,80,0.45)' : 'rgba(157,134,255,0.42)'); ag.addColorStop(1, 'rgba(157,134,255,0)'); g.fillStyle = ag; g.beginPath(); g.arc(0, 0, rr + 10, 0, 6.283); g.fill(); }
+  if (phx) { const a2 = Math.sin(phase * 0.7); for (let k = 0; k < 3; k++) { g.fillStyle = ['#ffd36b', '#ff9a3d', '#ff5a5a'][k]; g.beginPath(); g.moveTo(-14, 2); g.quadraticCurveTo(-34 - k * 6, -10 + k * 9 + a2 * 4, -52 - k * 5, -2 + k * 10 + a2 * 6); g.quadraticCurveTo(-34, 6 + k * 3, -14, 6); g.fill(); } }
   if (state === 2) { const rg = g.createRadialGradient(0, 0, 4, 0, 0, 40); rg.addColorStop(0, 'rgba(246,220,148,0.55)'); rg.addColorStop(1, 'rgba(246,220,148,0)'); g.fillStyle = rg; g.beginPath(); g.arc(0, 0, 40, 0, 6.283); g.fill(); }
   const a = Math.sin(phase) * 0.9;
   g.fillStyle = mixHex(col, '#1a1030', 0.3);
@@ -1445,11 +1478,50 @@ function drawBird(g, x, y, s, col, phase, tilt, state) {
   g.fillStyle = '#1a1030'; g.beginPath(); g.arc(10.2, -4, 2.3, 0, 6.283); g.fill();
   g.fillStyle = '#fff'; g.beginPath(); g.arc(11, -5, 0.9, 0, 6.283); g.fill();
   g.fillStyle = 'rgba(255,140,170,0.55)'; g.beginPath(); g.ellipse(8, 3, 3.2, 2, 0, 0, 6.283); g.fill();
-  g.fillStyle = '#ffc65c'; g.beginPath(); g.moveTo(16, -2.5); g.lineTo(26, 0.5); g.lineTo(16, 4); g.closePath(); g.fill();
+  if (chomp > 0.05) { const op = chomp * 7; g.fillStyle = '#7a2440'; g.beginPath(); g.moveTo(16, -2); g.lineTo(25, -2 - op * 0.6); g.lineTo(25, 3 + op * 0.6); g.lineTo(16, 3.5); g.fill(); g.fillStyle = '#ffc65c'; g.beginPath(); g.moveTo(16, -3); g.lineTo(26, -3 - op); g.lineTo(16, 0.5); g.closePath(); g.fill(); g.beginPath(); g.moveTo(16, 1); g.lineTo(25, 4 + op); g.lineTo(16, 4.5); g.closePath(); g.fill(); }
+  else { g.fillStyle = '#ffc65c'; g.beginPath(); g.moveTo(16, -2.5); g.lineTo(26, 0.5); g.lineTo(16, 4); g.closePath(); g.fill(); }
+  if (lv >= 7) { g.fillStyle = '#f6dc94'; g.strokeStyle = '#b8862e'; g.lineWidth = 1; g.beginPath(); g.moveTo(-7, -11); g.lineTo(-8, -24); g.lineTo(-2, -17); g.lineTo(3, -27); g.lineTo(7, -17); g.lineTo(13, -24); g.lineTo(11, -11); g.closePath(); g.fill(); g.stroke(); g.fillStyle = '#ff7486'; g.beginPath(); g.arc(3, -15, 2.2, 0, 6.283); g.fill(); g.fillStyle = '#7cf0c0'; g.beginPath(); g.arc(-4, -14, 1.5, 0, 6.283); g.arc(10, -14, 1.5, 0, 6.283); g.fill(); g.restore(); return; }
+  if (phx) { for (let k = 0; k < 3; k++) { g.fillStyle = ['#ffd36b', '#ffb347', '#ff7a3d'][k]; g.beginPath(); g.moveTo(-2 + k * 4, -11); g.quadraticCurveTo(-8 + k * 6, -24, -4 + k * 7, -30 + k * 3); g.quadraticCurveTo(2 + k * 5, -20, 4 + k * 4, -11); g.fill(); } g.restore(); return; }
   g.fillStyle = '#3b2a8a'; g.beginPath(); g.moveTo(-8, -10); g.lineTo(13, -12); g.quadraticCurveTo(6, -22, 3, -35); g.quadraticCurveTo(-1, -22, -8, -10); g.fill();
   g.fillStyle = '#2c1f6e'; g.beginPath(); g.ellipse(2.5, -11, 13, 3, -0.08, 0, 6.283); g.fill();
   g.strokeStyle = '#f6dc94'; g.lineWidth = 2.2; g.beginPath(); g.moveTo(-6, -13.5); g.lineTo(11, -15.2); g.stroke();
   drawSparkle(g, 3.5, -23, 3.4, '#f6dc94', 1);
+  g.restore();
+}
+const PET_KIND = { bird: { name: '魔法小鳥' }, owl: { name: '雪白貓頭鷹' }, scops: { name: '迷你角鴞' }, fluff: { name: '紫色毛毛球' }, phoenix: { name: '火焰鳳凰', lv: 9 } };
+function drawPet(g, x, y, s, col, phase, tilt, state, pet) {
+  const kind = pet && pet.kind || 'bird';
+  if (kind === 'bird' || kind === 'phoenix' || !PET_KIND[kind]) { drawBird(g, x, y, s, col, phase, tilt, state, pet); return; }
+  const lv = pet.lv || 1, chomp = pet.chomp || 0, a = Math.sin(phase) * 0.9, T = performance.now() / 1000;
+  g.save(); g.translate(x, y); g.rotate(tilt * 0.6); g.scale(s, s);
+  if (state === 2) { const rg = g.createRadialGradient(0, 0, 4, 0, 0, 40); rg.addColorStop(0, 'rgba(246,220,148,0.55)'); rg.addColorStop(1, 'rgba(246,220,148,0)'); g.fillStyle = rg; g.beginPath(); g.arc(0, 0, 40, 0, 6.283); g.fill(); }
+  if (lv >= 5) { const rr = 30 + Math.sin(T * 3) * 3; const ag = g.createRadialGradient(0, 0, 8, 0, 0, rr + 10); ag.addColorStop(0, 'rgba(157,134,255,0.42)'); ag.addColorStop(1, 'rgba(157,134,255,0)'); g.fillStyle = ag; g.beginPath(); g.arc(0, 0, rr + 10, 0, 6.283); g.fill(); }
+  let headY = -16;
+  if (kind === 'owl' || kind === 'scops') {
+    const sm = kind === 'scops', body = sm ? '#a08a6e' : '#f7f4ee', wing = sm ? '#7d6750' : '#dcd6cc', sc = sm ? 0.82 : 1;
+    g.scale(sc, sc);
+    for (const sd of [-1, 1]) { g.save(); g.translate(sd * 14, -2); g.rotate(sd * (0.5 + a * 0.9)); g.fillStyle = wing; g.beginPath(); g.ellipse(sd * 6, -4, 13, 7, sd * 0.2, 0, 6.283); g.fill(); g.restore(); }
+    g.fillStyle = body; g.beginPath(); g.ellipse(0, 0, 17, 18, 0, 0, 6.283); g.fill();
+    g.fillStyle = sm ? '#5c4a38' : '#9a958c'; for (const [dx, dy] of [[-8, 6], [-2, 10], [5, 7], [9, 12], [-6, 13], [2, 4]]) { g.beginPath(); g.moveTo(dx - 2, dy); g.lineTo(dx, dy + 2); g.lineTo(dx + 2, dy); g.fill(); }
+    if (sm) { g.fillStyle = '#7d6750'; g.beginPath(); g.moveTo(-12, -11); g.lineTo(-15, -24); g.lineTo(-5, -14); g.fill(); g.beginPath(); g.moveTo(12, -11); g.lineTo(15, -24); g.lineTo(5, -14); g.fill(); }
+    g.fillStyle = sm ? '#c9b391' : '#ffffff'; g.beginPath(); g.ellipse(-6, -6, 7.5, 7, 0, 0, 6.283); g.ellipse(6, -6, 7.5, 7, 0, 0, 6.283); g.fill();
+    for (const ex of [-6, 6]) { g.fillStyle = '#ffc93c'; g.beginPath(); g.arc(ex, -6, 4.6, 0, 6.283); g.fill(); g.fillStyle = '#1a1030'; g.beginPath(); g.arc(ex + 0.6, -6, 2.5, 0, 6.283); g.fill(); g.fillStyle = '#fff'; g.beginPath(); g.arc(ex + 1.4, -7.2, 0.9, 0, 6.283); g.fill(); }
+    const op = chomp * 5; g.fillStyle = '#4a3a2a';
+    if (op > 0.3) { g.fillStyle = '#7a2440'; g.beginPath(); g.ellipse(0, 1 + op * 0.4, 3, op * 0.6 + 1, 0, 0, 6.283); g.fill(); g.fillStyle = '#4a3a2a'; g.beginPath(); g.moveTo(-3, -2); g.lineTo(3, -2); g.lineTo(0, 1.5); g.fill(); }
+    else { g.beginPath(); g.moveTo(-3, -1); g.lineTo(3, -1); g.lineTo(0, 4); g.fill(); }
+    g.fillStyle = '#ffb347'; g.beginPath(); g.ellipse(-5, 17, 3, 2, 0, 0, 6.283); g.ellipse(5, 17, 3, 2, 0, 0, 6.283); g.fill();
+    headY = sm ? -20 : -17;
+  } else if (kind === 'fluff') {
+    const bob = Math.sin(T * 4) * 2; g.translate(0, bob);
+    g.fillStyle = '#9a5ee0'; for (let i = 0; i < 22; i++) { const an = i / 22 * 6.283, r = 16 + (i % 2 ? 3 : 0) + Math.sin(T * 6 + i) * 0.8; g.beginPath(); g.arc(Math.cos(an) * r, Math.sin(an) * r, 5, 0, 6.283); g.fill(); }
+    const fg = g.createRadialGradient(-5, -6, 2, 0, 0, 19); fg.addColorStop(0, '#d6b4ff'); fg.addColorStop(1, '#8a4fd8'); g.fillStyle = fg; g.beginPath(); g.arc(0, 0, 17, 0, 6.283); g.fill();
+    for (const ex of [-6, 6]) { g.fillStyle = '#fff'; g.beginPath(); g.arc(ex, -4, 4.6, 0, 6.283); g.fill(); g.fillStyle = '#1a1030'; g.beginPath(); g.arc(ex + 1, -3.6, 2.6, 0, 6.283); g.fill(); g.fillStyle = '#fff'; g.beginPath(); g.arc(ex + 1.8, -4.8, 1, 0, 6.283); g.fill(); }
+    g.fillStyle = 'rgba(255,150,190,0.6)'; g.beginPath(); g.ellipse(-10, 3, 3, 2, 0, 0, 6.283); g.ellipse(10, 3, 3, 2, 0, 0, 6.283); g.fill();
+    const op = chomp * 6; g.fillStyle = '#5a1a40'; g.beginPath(); if (op > 0.4) g.ellipse(0, 5, 4 + op * 0.3, 1.5 + op * 0.7, 0, 0, 6.283); else g.ellipse(0, 5, 3, 1.3, 0, 0, 3.1416); g.fill();
+    headY = -18;
+  }
+  if (lv >= 7) { g.translate(0, headY + 5); g.fillStyle = '#f6dc94'; g.strokeStyle = '#b8862e'; g.lineWidth = 1; g.beginPath(); g.moveTo(-9, 0); g.lineTo(-10, -12); g.lineTo(-4, -6); g.lineTo(0, -15); g.lineTo(4, -6); g.lineTo(10, -12); g.lineTo(9, 0); g.closePath(); g.fill(); g.stroke(); g.fillStyle = '#ff7486'; g.beginPath(); g.arc(0, -4, 2.2, 0, 6.283); g.fill(); }
+  else if (lv >= 3) drawSparkle(g, 12, headY - 2, 4, '#f6dc94', 1);
   g.restore();
 }
 function drawGame(cv, o) {
@@ -1520,6 +1592,19 @@ function drawGame(cv, o) {
   for (const d of o.dust) {
     if (d.t < tL || d.t > tR || d.got) continue;
     const dx = x(d.t), dy = y(d.m);
+    if (o.game === 'coin') {
+      if (d.miss) { g.fillStyle = 'rgba(200,190,230,0.22)'; g.beginPath(); g.arc(dx, dy, 4, 0, 6.283); g.fill(); continue; }
+      const sx = 0.35 + 0.65 * Math.abs(Math.cos(clock * 2.6 + d.t * 1.7)), R = 8.5;
+      g.save(); g.translate(dx, dy);
+      g.fillStyle = 'rgba(255,214,90,0.22)'; g.beginPath(); g.arc(0, 0, R * 1.7, 0, 6.283); g.fill();
+      g.scale(sx, 1);
+      const cg = g.createRadialGradient(-3, -3, 1, 0, 0, R); cg.addColorStop(0, '#fff6c8'); cg.addColorStop(0.55, '#ffd34a'); cg.addColorStop(1, '#c98a12');
+      g.fillStyle = cg; g.beginPath(); g.arc(0, 0, R, 0, 6.283); g.fill();
+      g.strokeStyle = '#8a5a08'; g.lineWidth = 1.4; g.stroke();
+      g.strokeStyle = 'rgba(138,90,8,0.55)'; g.lineWidth = 1; g.beginPath(); g.arc(0, 0, R - 2.6, 0, 6.283); g.stroke();
+      drawSparkle(g, 0, 0, 4.2, '#a86e0c', 1);
+      g.restore(); continue;
+    }
     if (d.miss) { g.fillStyle = 'rgba(200,190,230,0.25)'; g.beginPath(); g.arc(dx, dy, 2.2, 0, 6.283); g.fill(); continue; }
     const pulse = 0.8 + 0.25 * Math.sin(clock * 6 + d.t * 3);
     g.fillStyle = 'rgba(255,240,190,0.25)'; g.beginPath(); g.arc(dx, dy, 9 * pulse, 0, 6.283); g.fill();
@@ -1547,7 +1632,7 @@ function drawGame(cv, o) {
   if (bird && o.playX != null) {
     const by = y(Math.max(lo + 0.6, Math.min(hi - 0.6, bird.m)));
     const s = Math.max(0.75, Math.min(1.3, rowH / 15));
-    drawBird(g, o.playX, by, s, col, bird.phase, bird.tilt, bird.state);
+    drawPet(g, o.playX, by, s, col, bird.phase, bird.tilt, bird.state, bird.pet);
     if (active && bird.voiced && Math.abs(bird.m - active.midi) > 0.6) {
       const up = active.midi > bird.m, ay = by + (up ? -38 : 38) * s;
       g.save(); g.fillStyle = 'rgba(255,248,224,0.92)'; g.translate(o.playX + 32 * s, ay);
@@ -1611,7 +1696,9 @@ class Session {
     this.Sx = Sx; this.E = E;
     this.notes = setWindows(tr.notes.filter(n => n.t0 >= Sx - 1e-3 && n.t0 < E - 1e-3).map(n => Object.assign({}, n, { lh: 0, lt: 0 })), rule('breath', this.song));
     this.others = tl.tracks.filter(t => t !== tr && t.role === 'sing');
-    this.dust = []; this.dustI = 0; this.dustGot = 0;
+    this.dust = []; this.dustI = 0; this.dustGot = 0; this.coins = 0; this.coinPerfect = 0; this.coinChain = 0; this.coinBonus = 0; this.pops = []; this.chomp = 0;
+    this.game = this.game || 'dust'; { const w = wizGet(); this.petLv = wizLevel(w.xp).lv; this.petKind = petKindOf(w); }
+    $('#dust-lbl').textContent = this.game === 'coin' ? '🪙 金幣' : '✦ 星塵';
     for (const n of this.notes) { const L = Math.max(0.05, n.wb - n.wa), kk = Math.max(1, Math.round(L / 0.32)); for (let j = 0; j < kk; j++) this.dust.push({ t: n.wa + (j + 0.5) * L / kk, m: n.midi, got: false, miss: false }); }
     if (this.mic) this.updDust();
     this.view = viewRange(this.notes);
@@ -1710,10 +1797,17 @@ class Session {
     }
   }
   dustBurst(d) {
-    for (let i = 0; i < 7; i++) { const a = Math.random() * 6.283, sp = 30 + Math.random() * 80; this.parts.push({ t: d.t, m: d.m, dx: 0, dy: 0, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 30, life: 0.45 + Math.random() * 0.3, age: 0, r: 2.5 + Math.random() * 2.5, c: '#fff4c8' }); }
+    const coin = this.game === 'coin';
+    for (let i = 0; i < 7; i++) { const a = Math.random() * 6.283, sp = 30 + Math.random() * 80; this.parts.push({ t: d.t, m: d.m, dx: 0, dy: 0, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 30, life: 0.45 + Math.random() * 0.3, age: 0, r: 2.5 + Math.random() * 2.5, c: coin ? (i % 2 ? '#ffd34a' : '#fff6c8') : '#fff4c8' }); }
+    if (coin) {
+      const v = d.v || 1; this.coins += v; if (v >= 3) this.coinPerfect++;
+      this.chomp = 1; this.coinChain++;
+      this.pops.push({ t: d.t, m: d.m, txt: '+' + v + (v >= 3 ? ' 完美' : ''), c: v >= 3 ? '#fff1a8' : v === 2 ? '#ffd34a' : '#e8c77a', age: 0, life: 0.9 });
+      if (this.coinChain % 10 === 0) { this.coins += 5; this.coinBonus += 5; this.pops.push({ t: d.t, m: d.m + 2.2, txt: `連吃 ${this.coinChain} 枚！+5`, c: '#7cf0c0', age: 0, life: 1.3, big: true }); }
+    }
     if (this.mic) this.updDust();
   }
-  updDust() { $('#dust-count').textContent = `${this.dustGot} / ${this.dust.length}`; }
+  updDust() { $('#dust-count').textContent = this.game === 'coin' ? `${this.coins}` : `${this.dustGot} / ${this.dust.length}`; }
   setCombo() {
     const el = $('#combo');
     if (this.combo >= 2) { el.hidden = false; el.textContent = `連擊 ×${this.combo}`; el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
@@ -1759,9 +1853,9 @@ class Session {
         const du = this.dust[j]; if (du.t > ft + 0.05) break;
         if (du.got || du.miss || m == null) continue;
         const dm = this.octave ? m - 12 * Math.round((m - du.m) / 12) : m;
-        if (ft >= du.t - 0.05 && ft <= du.t + 0.25 && Math.abs(dm - du.m) * 100 <= this.th.b) { du.got = true; this.dustGot++; this.dustBurst(du); }
+        if (ft >= du.t - 0.05 && ft <= du.t + 0.25 && Math.abs(dm - du.m) * 100 <= this.th.b) { du.got = true; this.dustGot++; du.v = coinValue(Math.abs(dm - du.m) * 100, this.th); this.dustBurst(du); }
       }
-      while (this.dustI < this.dust.length) { const du = this.dust[this.dustI]; if (du.got) { this.dustI++; continue; } if (du.t < ft - 0.25) { du.miss = true; this.dustI++; continue; } break; }
+      while (this.dustI < this.dust.length) { const du = this.dust[this.dustI]; if (du.got) { this.dustI++; continue; } if (du.t < ft - 0.25) { du.miss = true; this.coinChain = 0; this.dustI++; continue; } break; }
       this.cur = { d, ok, at: now, tgt };
     }
     if (this.mic) {
@@ -1799,14 +1893,16 @@ class Session {
     if (target != null) { this.birdM += (target - this.birdM) * Math.min(1, dt * 14); this.flapSpd = 15; }
     else { this.birdM = Math.max(this.view.lo + 0.8, this.birdM - 0.9 * dt); this.flapSpd = 4.5; }
     this.birdPhase = (this.birdPhase || 0) + dt * this.flapSpd;
+    this.chomp = Math.max(0, (this.chomp || 0) - dt * 5);
+    if (this.petLv >= 3 && target != null && Math.random() < dt * 22) { const c = this.petKind === 'phoenix' ? (Math.random() < 0.5 ? '#ffb347' : '#ff6a3d') : this.petLv >= 5 ? '#c9b8ff' : '#fff4c8'; this.parts.push({ t: visT - 0.12, m: this.birdM + (Math.random() - 0.5) * 0.8, dx: 0, dy: 0, vx: -20 - Math.random() * 30, vy: (Math.random() - 0.5) * 30, life: 0.5 + Math.random() * 0.4, age: 0, r: 1.8 + Math.random() * 2.2, c }); }
     const vel = dt > 0 ? (this.birdM - prevB) / dt : 0;
     this.birdTilt = (this.birdTilt || 0) * 0.85 + Math.max(-0.45, Math.min(0.45, -vel * 0.035)) * 0.15;
     if (!this.mic) while (this.dustI < this.dust.length && this.dust[this.dustI].t <= visT) { const d = this.dust[this.dustI++]; d.got = true; this.dustGot++; this.dustBurst(d); }
     const geo = drawGame(cv, {
       sess: this, tl: this.tl, notes: this.notes, others: this.others, color: this.track.color, lo: this.view.lo, hi: this.view.hi,
       x: xf, tL: visT - playX / pps, tR: visT + (W - playX) / pps, playX, t: visT, pps, clock: now,
-      frames: this.frames, dust: this.dust, onKeys: this.onKeys, under: this.under || 'lyrics',
-      bird: { m: this.birdM, phase: this.birdPhase, tilt: this.birdTilt, state: !this.mic ? 2 : (target != null && this.cur ? this.cur.ok : null), voiced: target != null },
+      frames: this.frames, dust: this.dust, game: this.game, onKeys: this.onKeys, under: this.under || 'lyrics',
+      bird: { m: this.birdM, phase: this.birdPhase, tilt: this.birdTilt, state: !this.mic ? 2 : (target != null && this.cur ? this.cur.ok : null), voiced: target != null, pet: { lv: this.petLv, chomp: this.chomp, kind: this.petKind } },
       noteScore: n => (n.t1 < visT && n.lt > 2) ? n.lh / n.lt / 0.85 : null
     });
     if (geo && this.parts.length) {
@@ -1815,6 +1911,17 @@ class Session {
         p.vy += 60 * dt; p.dx += p.vx * dt; p.dy += p.vy * dt; p.vx *= 0.97;
         drawSparkle(geo.g, xf(p.t) + p.dx, geo.y(p.m) + p.dy, p.r, p.c, 1 - p.age / p.life);
       }
+    }
+    if (geo && this.pops && this.pops.length) {
+      this.pops = this.pops.filter(p => (p.age += dt) < p.life);
+      const gg = geo.g; gg.save(); gg.textAlign = 'center'; gg.textBaseline = 'middle';
+      for (const p of this.pops) {
+        const k = p.age / p.life; gg.globalAlpha = Math.min(1, (1 - k) * 1.6);
+        gg.font = `900 ${p.big ? 20 : 15}px "Noto Sans TC",sans-serif`;
+        const px = xf(p.t) + 4, py = geo.y(p.m) - 18 - k * 34;
+        gg.lineWidth = 4; gg.strokeStyle = 'rgba(20,12,40,0.85)'; gg.strokeText(p.txt, px, py); gg.fillStyle = p.c; gg.fillText(p.txt, px, py);
+      }
+      gg.restore();
     }
     if (visT >= this.E + 0.6) { this.finish(false); return; }
     this.raf = requestAnimationFrame(this.loop);
@@ -1913,7 +2020,7 @@ document.addEventListener('click', e => {
 
 /* ----- home ----- */
 $('#inp-name').value = LS.get('cpc-name', '');
-$('#inp-name').addEventListener('input', e => { LS.set('cpc-name', e.target.value.trim()); renderHome(); });
+$('#inp-name').addEventListener('input', e => { LS.set('cpc-name', e.target.value.trim()); renderHome(); renderWiz(); });
 function songStars(s) {
   const all = LS.get('cpc-progress', {}); const pre = `${playerName()}|${s.id}|`;
   let n = 0; for (const k of Object.keys(all)) if (k.startsWith(pre)) { const p = all[k]; for (const v of Object.values(p.s || {})) n += stars10(v); if (p.boss >= 0) n += stars10(p.boss); }
@@ -2201,7 +2308,7 @@ async function startPractice() {
   show('play');
   try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
   const ptl = getTLAt(S.song, prac.rate);
-  const sess = S.session = new Session({ song: S.song, tl: ptl, track: ptl.tracks[S.trackIdx], rate: prac.rate, metro: prac.metro, beatsOverride: prac.beats, skipIntro: prac.skipIntro, under: prac.under, solMode: prac.solMode, onKeys: new Set(othersOn(ptl, S.trackIdx).map(t => t.key)), othersVol: prac.ovol, range: S.range.slice(), mode: S.mode, stage: Object.assign({}, S.stage), canvas: $('#cv-play'), mic: true,
+  const sess = S.session = new Session({ song: S.song, tl: ptl, track: ptl.tracks[S.trackIdx], rate: prac.rate, metro: prac.metro, beatsOverride: prac.beats, skipIntro: prac.skipIntro, under: prac.under, solMode: prac.solMode, game: prac.game, onKeys: new Set(othersOn(ptl, S.trackIdx).map(t => t.key)), othersVol: prac.ovol, range: S.range.slice(), mode: S.mode, stage: Object.assign({}, S.stage), canvas: $('#cv-play'), mic: true,
     onEnd: (cutoff, early) => endPractice(sess, cutoff, early) });
   try { await sess.start(); }
   catch (e) { renderMap(); show('map'); err.hidden = false; err.textContent = '無法播放：' + e.message; }
@@ -2236,9 +2343,15 @@ function endPractice(sess, cutoff, early) {
     setProg(sess.song, tr, sess.mode, prog);
   }
   S.lastRun = { sess, res };
+  res.wiz = null;
+  if (sess.game === 'coin' && sess.mic !== false) {
+    const stars = stars10(score), need = rule('passStars') || 6;
+    const bonus = (!res.early && stars >= need) ? stars * 3 : 0;
+    res.wiz = wizAdd(sess.coins + bonus); res.wiz.coins = sess.coins; res.wiz.bonus = bonus; res.wiz.perfect = sess.coinPerfect; res.wiz.chain = sess.coinBonus;
+  }
   const stageLbl = st.boss ? '最終試煉' : st.free ? `自由 ${sess.tl.measures[sess.range[0]].num}–${sess.tl.measures[sess.range[1]].num}` : `第${st.i + 1}關`;
   const recs = LS.get('cpc-records', []);
-  recs.unshift({ time: Date.now(), name: playerName(), song: sess.song.title || '', part: tr.label, mode: sess.mode === 'easy' ? '學徒' : '巫師', range: stageLbl + (Math.abs((sess.rate || 1) - 1) > 1e-3 ? ` · 速度${Math.round(sess.rate * 100)}%` : '') + (sess.metro ? ' · 節拍器' : '') + (sess.onKeys && sess.onKeys.size ? ' · 陪唱' : '') + (res.early ? '（中止）' : ''), score, stars: stars10(score) });
+  recs.unshift({ coins: res.wiz ? res.wiz.coins : undefined, time: Date.now(), name: playerName(), song: sess.song.title || '', part: tr.label, mode: sess.mode === 'easy' ? '學徒' : '巫師', range: stageLbl + (Math.abs((sess.rate || 1) - 1) > 1e-3 ? ` · 速度${Math.round(sess.rate * 100)}%` : '') + (sess.metro ? ' · 節拍器' : '') + (sess.onKeys && sess.onKeys.size ? ' · 陪唱' : '') + (res.early ? '（中止）' : ''), score, stars: stars10(score) });
   LS.set('cpc-records', recs.slice(0, 800));
   renderResult(sess, res, prevBest, unlocked);
   show('result');
@@ -2273,7 +2386,10 @@ function renderResult(sess, res, prevBest, unlocked) {
   let g = 0, o = 0, b = 0;
   for (const n of res.notes) { if (n.sc == null) continue; if (n.sc >= 0.75) g++; else if (n.sc >= 0.4) o++; else b++; }
   $('#st-g').textContent = g; $('#st-o').textContent = o; $('#st-b').textContent = b; $('#st-c').textContent = res.maxCombo || 0;
-  $('#st-d').textContent = `${sess.dustGot || 0}/${(sess.dust || []).length}`;
+  const coinMode = sess.game === 'coin';
+  $('#st-d').textContent = coinMode ? `${sess.coins || 0}` : `${sess.dustGot || 0}/${(sess.dust || []).length}`;
+  $('#st-d-lbl').textContent = coinMode ? '吃到金幣' : '收集星塵';
+  renderResWiz(res.wiz);
   const pb = prevBest >= 0 ? stars10(prevBest) : -1;
   $('#res-best').textContent = res.early ? '中途停止，不計入闖關。' : pb >= 0 ? (stars > pb ? `刷新紀錄！之前最多 ${pb} 顆星。` : `這一關你的最佳紀錄是 ${pb} 顆星。`) : '';
   $('#btn-cert').hidden = !!res.early;
@@ -3032,6 +3148,89 @@ ocrInit();
 
 let prac = Object.assign({ rate: 1, metro: false, beats: 0, partsOff: [], ovol: 0.4, skipIntro: true, showLyrics: true, solMode: 'fixed' }, LS.get('cpc-practice', {}));
 if (!prac.under) prac.under = prac.showLyrics === false ? 'none' : 'lyrics';
+if (!prac.game) prac.game = 'coin';
+
+/* ================= wizard level & pet ================= */
+const WIZ_LV = [[0, '見習魔法師'], [60, '魔杖學徒'], [160, '咒語使者'], [320, '星光法師'], [550, '月光術士'], [850, '元素法師'], [1250, '星辰賢者'], [1800, '大魔導師'], [2500, '星韻守護者'], [3400, '傳奇大魔法師']];
+const PET_STAGE = lv => lv >= 9 ? '傳說' : lv >= 7 ? '皇冠' : lv >= 5 ? '月光' : lv >= 3 ? '星光' : '幼年';
+function petKindOf(w) { const k = w.kind || 'bird', L = wizLevel(w.xp).lv; return PET_KIND[k] && (PET_KIND[k].lv || 0) <= L ? k : 'bird'; }
+function petTitle(w, lv) { return PET_STAGE(lv) + PET_KIND[petKindOf(w)].name; }
+function coinValue(devCents, th) { return devCents <= th.a ? 3 : devCents <= (th.a + th.b) / 2 ? 2 : 1; }
+function wizLevel(xp) {
+  let i = 0; while (i + 1 < WIZ_LV.length && xp >= WIZ_LV[i + 1][0]) i++;
+  const nx = WIZ_LV[i + 1];
+  return { lv: i + 1, title: WIZ_LV[i][1], base: WIZ_LV[i][0], next: nx ? nx[0] : null, nextTitle: nx ? nx[1] : '', pct: nx ? (xp - WIZ_LV[i][0]) / (nx[0] - WIZ_LV[i][0]) : 1 };
+}
+function wizKey() { return ($('#inp-name').value || '').trim() || '無名巫師'; }
+function wizGet() { const all = LS.get('cpc-wiz', {}); return Object.assign({ xp: 0, pet: '' }, all[wizKey()] || {}); }
+function wizSet(w) { const all = LS.get('cpc-wiz', {}); all[wizKey()] = w; LS.set('cpc-wiz', all); }
+function wizAdd(n) {
+  const w = wizGet(), before = w.xp; w.xp = before + Math.max(0, Math.round(n)); w.total = (w.total || 0) + Math.max(0, Math.round(n)); wizSet(w);
+  const a = wizLevel(before), b = wizLevel(w.xp);
+  return { before, after: w.xp, lvA: a, lvB: b, up: b.lv > a.lv, petUp: PET_STAGE(b.lv) !== PET_STAGE(a.lv) };
+}
+function wizSVG(lv) {
+  const robes = ['#4b3a8f', '#3f5bb5', '#2f7d8f', '#3a8f5e', '#5b3fa8', '#a8433f', '#2b2f7a', '#6a1f6e', '#1d2a5c', '#20103a'];
+  const robe = robes[lv - 1] || robes[0], gold = '#f6dc94';
+  let x = '';
+  if (lv >= 7) x += `<circle cx="50" cy="62" r="46" fill="url(#wa${lv})" />`;
+  x += `<defs><radialGradient id="wa${lv}"><stop offset="0" stop-color="${lv >= 10 ? '#ffb347' : '#9d86ff'}" stop-opacity=".55"/><stop offset="1" stop-color="#9d86ff" stop-opacity="0"/></radialGradient></defs>`;
+  if (lv >= 5) x += `<path d="M30 58 L14 112 L86 112 L70 58Z" fill="${lv >= 8 ? '#b8862e' : '#2a1f5c'}" opacity=".9"/>`;
+  x += `<path d="M34 56 Q50 50 66 56 L78 112 L22 112Z" fill="${robe}"/>`;
+  x += `<path d="M22 112 L78 112 L76 104 L24 104Z" fill="${gold}" opacity="${lv >= 3 ? 1 : .4}"/>`;
+  x += `<path d="M50 56 L50 104" stroke="${gold}" stroke-width="${lv >= 4 ? 2.5 : 1.2}" opacity=".8"/>`;
+  x += `<circle cx="50" cy="44" r="13" fill="#ffe0c2"/><circle cx="45.5" cy="44" r="1.8" fill="#2a1c03"/><circle cx="54.5" cy="44" r="1.8" fill="#2a1c03"/><path d="M46 49 Q50 52 54 49" stroke="#a05a3a" stroke-width="1.4" fill="none"/><ellipse cx="42" cy="48" rx="2.6" ry="1.6" fill="#ff9aa8" opacity=".6"/><ellipse cx="58" cy="48" rx="2.6" ry="1.6" fill="#ff9aa8" opacity=".6"/>`;
+  if (lv >= 6) x += `<path d="M38 52 Q50 74 62 52 Q56 60 50 60 Q44 60 38 52Z" fill="#eee" opacity=".92"/>`;
+  const hatH = 26 + Math.min(lv, 8) * 2;
+  x += `<path d="M30 36 Q50 28 70 36 L50 ${36 - hatH}Z" fill="${robe}" stroke="${gold}" stroke-width="1"/><ellipse cx="50" cy="36" rx="23" ry="5" fill="${robe}" stroke="${gold}" stroke-width="1"/>`;
+  if (lv >= 2) x += `<path d="M33 34 Q50 30 67 34" stroke="${gold}" stroke-width="2.4" fill="none"/>`;
+  if (lv >= 3) x += `<path d="M50 ${18 - Math.min(lv, 8)} l2 4.5 5 .6 -3.7 3.4 1 5 -4.3-2.5 -4.3 2.5 1-5 -3.7-3.4 5-.6z" fill="${gold}"/>`;
+  if (lv >= 2) { const gem = lv >= 10 ? '#ff7a3d' : lv >= 7 ? '#7cf0c0' : lv >= 4 ? '#9d86ff' : '#f6dc94'; x += `<path d="M84 50 L78 112" stroke="#8a5a2a" stroke-width="3" stroke-linecap="round"/><circle cx="84.5" cy="47" r="${lv >= 6 ? 6 : 4.5}" fill="${gem}"/><circle cx="84.5" cy="47" r="${lv >= 6 ? 11 : 7}" fill="${gem}" opacity=".25"/>`; }
+  if (lv >= 9) x += [[12, 30], [88, 20], [16, 80], [92, 86]].map(([a, b]) => `<path d="M${a} ${b - 4} Q${a} ${b} ${a + 4} ${b} Q${a} ${b} ${a} ${b + 4} Q${a} ${b} ${a - 4} ${b} Q${a} ${b} ${a} ${b - 4}Z" fill="#fff6dc"/>`).join('');
+  return `<svg class="av" viewBox="0 0 100 120" aria-hidden="true">${x}</svg>`;
+}
+function drawPetIcon(cv, lv, kind) {
+  const dpr = Math.min(2, window.devicePixelRatio || 1), W = cv.clientWidth || 84, H = cv.clientHeight || 70;
+  cv.width = W * dpr; cv.height = H * dpr; const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawPet(g, W / 2 + (kind === 'phoenix' ? 10 : 2), H / 2 + 6, kind === 'fluff' ? 1 : 1.15, '#8f7bff', 0.6, -0.08, null, { lv, chomp: 0, kind });
+}
+function renderWiz() {
+  const w = wizGet(), L = wizLevel(w.xp), name = wizKey();
+  const pet = w.pet || '小星';
+  const table = WIZ_LV.map(([x, t], i) => `<span class="${i + 1 === L.lv ? 'on' : ''}">Lv.${i + 1} ${t}<br><small>${x} 金幣</small></span>`).join('');
+  $$('[data-wiz]').forEach(el => {
+    el.innerHTML = `${wizSVG(L.lv)}<canvas class="pet" aria-hidden="true"></canvas>
+      <div class="wi"><div class="wn"><small>LV.${L.lv}</small>${esc(name)}・${esc(L.title)}</div>
+      <div class="xpbar" role="progressbar" aria-label="魔法經驗值" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(L.pct * 100)}"><i style="width:${(L.pct * 100).toFixed(1)}%"></i></div>
+      <div class="wl">🪙 ${w.xp} 金幣${L.next ? `・再吃 ${L.next - w.xp} 枚升到「${L.nextTitle}」` : '・已經是最高等級！'}</div>
+      <label class="petname">寵物：${petTitle(w, L.lv)}<input type="text" maxlength="8" value="${esc(pet)}" aria-label="幫你的寵物取名字"></label>
+      <div class="pet-pick" role="group" aria-label="選擇寵物">${Object.entries(PET_KIND).map(([k, v]) => { const lock = (v.lv || 0) > L.lv; return `<button type="button" data-k="${k}" aria-pressed="${petKindOf(w) === k}" ${lock ? 'disabled' : ''}><canvas aria-hidden="true"></canvas><span>${v.name}${lock ? `<br><small>Lv.${v.lv} 解鎖</small>` : ''}</span></button>`; }).join('')}</div></div>
+      <details><summary>魔法師等級表</summary><p style="margin:6px 0 0">在「🪙 寵物吃金幣」模式唱歌，寵物吃到的金幣就是你的魔法經驗值。唱得越準，一枚金幣越值錢（最準 +3），連吃 10 枚再加 5；過關還有星星獎勵。寵物在 Lv.3、5、7 會進化，Lv.9 可以解鎖火焰鳳凰！</p><div class="lv-table">${table}</div></details>`;
+    drawPetIcon(el.querySelector('canvas.pet'), L.lv, petKindOf(w));
+    el.querySelectorAll('.pet-pick button').forEach(b => { drawPetIcon(b.querySelector('canvas'), L.lv, b.dataset.k); b.addEventListener('click', () => { const v = wizGet(); v.kind = b.dataset.k; wizSet(v); renderWiz(); }); });
+    el.querySelector('.petname input').addEventListener('change', e => { const v = wizGet(); v.pet = e.target.value.trim(); wizSet(v); });
+  });
+}
+function lvChime() {
+  try { const ctx = AE.init(), t = ctx.currentTime + 0.05; [72, 76, 79, 84].forEach((m, i) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'triangle'; o.frequency.value = 440 * Math.pow(2, (m - 69) / 12); g.gain.setValueAtTime(0, t + i * 0.12); g.gain.linearRampToValueAtTime(0.18, t + i * 0.12 + 0.02); g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.12 + 0.6); o.connect(g); g.connect(AE.master); o.start(t + i * 0.12); o.stop(t + i * 0.12 + 0.65); }); } catch (e) {}
+}
+function renderResWiz(r) {
+  const box = $('#res-wiz');
+  if (!r) { box.hidden = true; box.innerHTML = ''; return; }
+  box.hidden = false;
+  const a = r.lvA, b = r.lvB, pet = wizGet().pet || '小星';
+  const startPct = r.up ? 0 : a.pct;
+  box.innerHTML = `${wizSVG(b.lv)}<div class="rw">
+    ${r.up ? `<div class="lvup">✦ 升級了！Lv.${b.lv}「${esc(b.title)}」</div>` : ''}
+    <div class="coins">${esc(petTitle(wizGet(), b.lv))}「${esc(pet)}」吃到 <b>${r.coins}</b> 枚金幣${r.perfect ? `（完美 ${r.perfect} 次）` : ''}${r.bonus ? `・過關獎勵 +${r.bonus}` : ''}</div>
+    ${r.petUp ? `<div class="wl" style="color:var(--good)">你的寵物進化成「${esc(petTitle(wizGet(), b.lv))}」了！${b.lv >= 9 && a.lv < 9 ? '火焰鳳凰也解鎖了，可以到魔法師卡片換寵物！' : ''}</div>` : ''}
+    <div class="xpbar"><i style="width:${(startPct * 100).toFixed(1)}%"></i></div>
+    <div class="hint" style="margin:0">Lv.${b.lv} ${esc(b.title)}・共 ${r.after} 金幣${b.next ? `・再 ${b.next - r.after} 枚升到「${b.nextTitle}」` : '・最高等級！'}</div></div>`;
+  const bar = box.querySelector('.xpbar i');
+  requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.width = (b.pct * 100).toFixed(1) + '%'; }));
+  if (r.up) setTimeout(lvChime, 600);
+  renderWiz();
+}
 const othersOn = (tl, idx) => tl.tracks.filter((t, i) => t.role === 'sing' && i !== idx && !(prac.partsOff || []).includes(t.key));
 function renderPrac() {
   $('#prac-rate').value = prac.rate;
@@ -3041,6 +3240,7 @@ function renderPrac() {
   $$('#seg-beats button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.v === (prac.beats || 0))));
   $$('#seg-under button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === prac.under)));
   $$('#seg-sol button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === prac.solMode)));
+  $$('#seg-game button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === prac.game)));
   if (S.song) { const t = songTonic(S.song); $('#sol-hint').textContent = prac.solMode === 'movable' ? `首調唱名：這首歌是 ${KEYN[t]} 大調（或 ${KEYN[(t + 9) % 12]} 小調），${KEYN[t]} 唱 Do。左邊的音高刻度和音符下方都會換成首調唱名。` : '固定唱名：C 唱 Do、D 唱 Re，不管歌曲是什麼調。'; }
   $$('#seg-skip button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.v === (prac.skipIntro ? 1 : 0))));
   if (S.tl) { const m = S.tl.measures[Math.min(1, S.tl.measures.length - 1)]; $('#beats-auto').textContent = `照樂譜（${m.ts[0]}/${m.ts[1]}）`; }
@@ -3088,6 +3288,7 @@ $('#prac-rate').addEventListener('input', e => { prac.rate = Math.round(+e.targe
 $$('#seg-metro button').forEach(b => b.addEventListener('click', () => { prac.metro = b.dataset.v === '1'; LS.set('cpc-practice', prac); renderPrac(); }));
 $$('#seg-under button').forEach(b => b.addEventListener('click', () => { prac.under = b.dataset.v; LS.set('cpc-practice', prac); renderPrac(); }));
 $$('#seg-sol button').forEach(b => b.addEventListener('click', () => { prac.solMode = b.dataset.v; LS.set('cpc-practice', prac); renderPrac(); }));
+$$('#seg-game button').forEach(b => b.addEventListener('click', () => { prac.game = b.dataset.v; LS.set('cpc-practice', prac); renderPrac(); }));
 function setLyricBtn() { $('#btn-lyrics').textContent = { lyrics: '下方：歌詞', solfege: '下方：唱名', none: '下方：不顯示' }[prac.under] || '下方：歌詞'; }
 $('#btn-lyrics').addEventListener('click', () => { const order = ['lyrics', 'solfege', 'none']; prac.under = order[(order.indexOf(prac.under) + 1) % 3]; LS.set('cpc-practice', prac); if (S.session) S.session.under = prac.under; setLyricBtn(); });
 $$('#seg-skip button').forEach(b => b.addEventListener('click', () => { prac.skipIntro = b.dataset.v === '1'; LS.set('cpc-practice', prac); renderPrac(); }));
@@ -3357,7 +3558,8 @@ function enterAcademy(folder) {
   goAcademy(folder);
 }
 if (!CL && /^https?:$/.test(location.protocol)) $('#lnk-tut').hidden = false;
-$('#btn-start-game').addEventListener('click', () => { renderAcademy(); show('academy'); });
+$('#btn-start-game').addEventListener('click', () => { renderAcademy(); renderWiz(); show('academy'); });
+renderWiz();
 
 
 /* ----- key / movable-do helpers ----- */

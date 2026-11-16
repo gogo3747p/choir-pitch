@@ -3826,7 +3826,7 @@ const SYNC = (() => {
         <h4 style="margin:6px 0 0">A. 已經有其他裝置連上了？</h4><p class="hint" style="margin:0">在那台裝置的這裡按「📱 連接其他平板／電腦」，用這台的相機掃 QR code。或把連結貼在這裡：</p>
         <div class="row"><input type="text" id="sync-join" placeholder="貼上連線連結" autocomplete="off" style="flex:1;min-width:220px"><button type="button" class="btn soft" data-sy="join">連線</button></div>
         <h4 style="margin:10px 0 0">B. 第一次設定（只要在第一台電腦做一次）</h4>
-        <ol><li>電腦登入 GitHub，打開 <code>github.com/settings/personal-access-tokens/new</code>。</li><li>Token name 填「星韻魔法學院」，Expiration 選最長的期限。</li><li>在 <b>Permissions</b> → <b>Account permissions</b> → <b>Gists</b> 選 <b>Read and write</b>，其他都不用改。</li><li>按最下面的 <b>Generate token</b>，複製 <code>github_pat_</code> 開頭的那串，貼到下面。</li></ol>
+        <ol><li>先在這台電腦登入 GitHub，然後按這個按鈕（名稱、期限和 Gists 權限都已經幫您填好）：<br><a class="btn soft small" href="https://github.com/settings/personal-access-tokens/new?name=%E6%98%9F%E9%9F%BB%E9%AD%94%E6%B3%95%E5%AD%B8%E9%99%A2&description=%E6%98%9F%E9%9F%BB%E9%AD%94%E6%B3%95%E5%AD%B8%E9%99%A2+%E9%9B%B2%E7%AB%AF%E5%90%8C%E6%AD%A5&expires_in=366&gists=write" target="_blank" rel="noopener">🔑 打開 GitHub 權杖頁</a></li><li>確認 <b>Permissions</b> 裡有 <b>Gists：Read and write</b>（如果沒有，按 <b>Add permissions</b> 加上 Gists，再選 Read and write）。</li><li>按最下面的綠色 <b>Generate token</b>，複製 <code>github_pat_</code> 開頭的那串，貼到下面。這串只會出現一次，可以另外存起來。</li></ol>
         <p class="hint" style="margin:0">如果您幫「直笛守護者」做的權杖還留著，也可以直接貼同一個。</p>
         <div class="row"><input type="password" id="sync-tok" placeholder="貼上 github_pat_… 權杖" autocomplete="off" style="flex:1;min-width:220px"><button type="button" class="btn primary" data-sy="make">建立雲端</button></div></div>`;
     }

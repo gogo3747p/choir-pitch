@@ -3217,7 +3217,7 @@ if (!prac.under) prac.under = prac.showLyrics === false ? 'none' : 'lyrics';
 if (!prac.game) prac.game = 'coin';
 
 /* ================= wizard level & pet ================= */
-const WIZ_LV = [[0, '見習魔法師'], [100, '魔導學徒'], [300, '魔語使者'], [650, '星光法師'], [1200, '月光術士'], [2000, '元素法師'], [3200, '星辰賢者'], [5000, '大魔導師'], [7500, '星鋼守護者'], [11000, '傳奇大魔法師']];
+const WIZ_LV = [[0, '見習魔法師'], [200, '魔導學徒'], [600, '魔語使者'], [1300, '星光法師'], [2400, '月光術士'], [4000, '元素法師'], [6400, '星辰賢者'], [10000, '大魔導師'], [15000, '星鋼守護者'], [22000, '傳奇大魔法師']];
 const PETS = [
   { n: '雪羽傳信鴞', r: 'N', d: '忠誠又聰明的雪白貓頭鷹，最會幫忙送信。' },
   { n: '星瞳靈貓', r: 'N', d: '一藍一紫的眼睛，額頭有小小的星紋，很神秘。' },
@@ -3239,7 +3239,7 @@ const PETS = [
   { n: '曙光翼獅', r: 'SSR', d: '長著翅膀的獅子，高貴又勇敢。' }
 ];
 const RARITY = { N: { t: '普通', s: '★', w: 10, c: '#b2a8cf' }, SR: { t: '稀有', s: '★★', w: 5, c: '#9d86ff' }, SSR: { t: '傳說', s: '★★★', w: 2, c: '#ffcf4a' } };
-const ticketCum = k => 80 * k + 20 * k * (k - 1);   // coins needed for the k-th extra summon: 80, 200, 360, 560 ... (each costs 40 more)
+const ticketCum = k => 160 * k + 40 * k * (k - 1);   // coins needed for the k-th extra summon: 160, 400, 720 ... (each costs 80 more)
 function coinValue(devCents, th) { return devCents <= th.a ? 3 : devCents <= (th.a + th.b) / 2 ? 2 : 1; }
 function wizLevel(xp) {
   let i = 0; while (i + 1 < WIZ_LV.length && xp >= WIZ_LV[i + 1][0]) i++;
@@ -3282,7 +3282,7 @@ function renderWiz() {
       ${!left && w.pets.length < PETS.length ? `<div class="wl">再吃 ${nextTicketAt(w.xp) - w.xp} 枚金幣就能再召喚一次（每次召喚需要的金幣會越來越多）</div>` : ''}
       ${isClass() ? '<div class="wl">班級模式：全班一起累積金幣，雙魔法師一起升等。</div>' : `<div class="seg gseg" role="group" aria-label="魔法師造型"><button type="button" data-g="f" aria-pressed="${w.gender === 'f'}">女魔法師</button><button type="button" data-g="m" aria-pressed="${w.gender === 'm'}">男魔法師</button></div>`}</div>
       <details class="dex-box"><summary>寵物圖鑑（${w.pets.length} / ${PETS.length}）</summary><p>點一下已經召喚到的寵物，就能帶牠一起唱歌。普通 ★、稀有 ★★、傳說 ★★★，傳說寵物最難召喚！</p><div class="dex-grid">${dex}</div></details>
-      <details><summary>魔法師等級表</summary><p style="margin:6px 0 0">在「🪙 寵物吃金幣」模式唱歌，寵物吃到的金幣就是你的魔法經驗值。唱得越準，一枚金幣越值錢（最準 +3），連吃 10 枚再加 5；過關還有星星獎勵。累積金幣也能召喚新寵物，第一次免費，之後需要的金幣一次比一次多（80、120、160…）。等級越高，升下一級需要的金幣也越多。</p><div class="lv-table">${table}</div></details>`;
+      <details><summary>魔法師等級表</summary><p style="margin:6px 0 0">在「🪙 寵物吃金幣」模式唱歌，寵物吃到的金幣就是你的魔法經驗值。唱得越準，一枚金幣越值錢（最準 +3），連吃 10 枚再加 5；過關還有星星獎勵。累積金幣也能召喚新寵物，第一次免費，之後需要的金幣一次比一次多（160、240、320…）。等級越高，升下一級需要的金幣也越多。</p><div class="lv-table">${table}</div></details>`;
     const inp = el.querySelector('.petname input'); if (inp) inp.addEventListener('change', e => { const v = wizGet(); v.pet = e.target.value.trim(); wizSet(v); });
     el.querySelectorAll('.gseg [data-g]').forEach(b => b.addEventListener('click', () => { const v = wizGet(); v.gender = b.dataset.g; wizSet(v); renderWiz(); }));
     el.querySelectorAll('.dex[data-i]:not([disabled])').forEach(b => b.addEventListener('click', () => { const v = wizGet(); if (v.active !== +b.dataset.i) v.pet = ''; v.active = +b.dataset.i; wizSet(v); renderWiz(); }));

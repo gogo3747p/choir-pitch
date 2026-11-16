@@ -356,6 +356,30 @@ textarea:focus{border-color:var(--gold)}
 .sm-card h2{margin:4px 0;font-size:28px;color:var(--gold-hi)}
 .sm-card p{color:var(--parch);margin:4px 0 14px}
 @media (prefers-reduced-motion:reduce){.sm-circle,.sm-pet{animation:none}}
+.mode-grid{display:flex;gap:clamp(14px,3vw,32px);justify-content:center;flex-wrap:wrap;margin-top:10px}
+.mode-card{width:min(340px,90vw);display:flex;flex-direction:column;align-items:center;gap:10px;padding:28px 22px;border-radius:22px;border:1px solid rgba(226,189,98,.5);background:radial-gradient(circle at 50% 20%,rgba(157,134,255,.28),rgba(20,16,48,.9) 70%);color:var(--parch);text-align:center;transition:transform .2s,border-color .2s,box-shadow .2s}
+.mode-card:hover{transform:translateY(-4px);border-color:var(--gold-hi);box-shadow:0 0 30px rgba(246,220,148,.3)}
+.mode-card .mi{font-size:54px;line-height:1}
+.mode-card b{font-family:var(--f-head);font-size:28px;font-weight:900;color:var(--gold-hi)}
+.mode-card small{color:var(--muted);font-size:15px;line-height:1.5}
+#scr-wizard .roster,#scr-wizard .wiz-card{max-width:820px;margin:0 auto;width:100%}
+.class-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;max-width:980px;margin:0 auto;width:100%}
+.class-card{position:relative;display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:16px;border:1px solid var(--rim);background:linear-gradient(160deg,#2b2156,#1a1438 70%);color:var(--parch);text-align:left}
+.class-card:hover{border-color:var(--gold)}
+.class-card .duo img{height:84px}
+.class-card b{font-family:var(--f-head);font-size:20px;color:var(--gold-hi);display:block}
+.class-card small{color:var(--muted);font-size:13px}
+.class-del{position:absolute;top:6px;right:8px;border:0;background:transparent;color:var(--muted);font-size:18px;padding:2px 6px}
+.class-del:hover{color:var(--bad)}
+.class-del.armed{background:var(--bad);color:#2a0610;border-radius:8px;font-size:12px;font-weight:700;z-index:2}
+.class-add{display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap}
+.class-add label{font-family:var(--f-head);font-weight:700;color:var(--gold-hi)}
+.class-add input{width:200px}
+.duo{display:inline-flex;gap:4px;flex:none}
+.wiz-card .duo img.av{height:170px}
+.res-wiz .duo img.av{height:120px}
+.lv-table .duo .lvimg{height:74px;margin:0}
+.lv-table .duo{justify-content:center;margin-bottom:4px}
 .pet-pick{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}.pet-pick button{display:flex;flex-direction:column;align-items:center;gap:0;background:rgba(0,0,0,.28);border:1px solid var(--rim);border-radius:10px;padding:4px 6px;color:var(--muted);font-size:12px;line-height:1.25;min-width:72px}.pet-pick button[aria-pressed="true"]{border-color:var(--gold);background:rgba(226,189,98,.18);color:var(--gold-hi)}.pet-pick button:disabled{opacity:.45}.pet-pick canvas{width:60px;height:46px}
 .lv-table{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;margin-top:8px}
 .lv-table span{background:rgba(0,0,0,.25);border-radius:8px;padding:4px 10px}
@@ -386,8 +410,38 @@ textarea:focus{border-color:var(--gold)}
   <a id="lnk-tut" class="tut-link" href="tutorial.html" target="_blank" rel="noopener" hidden>第一次玩？看教學動畫 →</a>
 </section>
 
-<section id="scr-academy" class="screen" hidden>
+<section id="scr-mode" class="screen" hidden>
   <div class="topbar" style="justify-content:space-between"><button class="btn ghost small" type="button" data-go="start">← 回大廳</button><button class="btn ghost small to-teacher" type="button">教授辦公室</button></div>
+  <div class="acad-title"><p class="eyebrow">Choose your mode</p><h2>你要怎麼練習？</h2></div>
+  <div class="mode-grid">
+    <button type="button" class="mode-card" id="btn-mode-solo"><span class="mi">🧙</span><b>個人模式</b><small>自己練習，選一位男魔法師或女魔法師，唱歌吃金幣升等、召喚寵物。</small></button>
+    <button type="button" class="mode-card" id="btn-mode-class"><span class="mi">🏫</span><b>班級模式</b><small>全班一起唱，雙魔法師代表整個班級，大家一起累積金幣、收集寵物。</small></button>
+  </div>
+</section>
+
+<section id="scr-wizard" class="screen" hidden>
+  <div class="topbar" style="justify-content:space-between"><button class="btn ghost small" type="button" data-go="mode">← 換模式</button><button class="btn ghost small to-teacher" type="button">教授辦公室</button></div>
+  <div class="acad-title"><p class="eyebrow">Your wizard</p><h2>建立你的魔法師</h2></div>
+  <div class="roster">
+    <label for="inp-name">巫師名冊</label>
+    <input type="text" id="inp-name" maxlength="20" placeholder="寫下你的名字或座號，例如：5年3班 12號 小美">
+    <small>闖關進度、星星和魔法師等級都會記在你的名字底下。</small>
+  </div>
+  <div class="wiz-card" data-wiz></div>
+  <div class="btn-row" style="justify-content:center"><button id="btn-wiz-go" class="btn primary big" type="button">進入學院 →</button></div>
+  <p id="wiz-go-msg" class="hint" style="text-align:center"></p>
+</section>
+
+<section id="scr-class" class="screen" hidden>
+  <div class="topbar" style="justify-content:space-between"><button class="btn ghost small" type="button" data-go="mode">← 換模式</button><button class="btn ghost small to-teacher" type="button">教授辦公室</button></div>
+  <div class="acad-title"><p class="eyebrow">Choose your class</p><h2>請選擇班級</h2></div>
+  <div id="class-grid" class="class-grid"></div>
+  <form id="class-add" class="class-add"><label for="inp-class">新增班級</label><input type="text" id="inp-class" maxlength="16" placeholder="例如：五年三班"><button class="btn soft" type="submit">＋ 新增</button></form>
+  <p class="hint" style="text-align:center">每個班級有自己的雙魔法師、金幣和寵物圖鑑，資料存在這台電腦上。</p>
+</section>
+
+<section id="scr-academy" class="screen" hidden>
+  <div class="topbar" style="justify-content:space-between"><button class="btn ghost small" type="button" data-go="mode">← 換模式</button><button class="btn ghost small to-teacher" type="button">教授辦公室</button></div>
   <div class="acad-title"><p class="eyebrow">Choose your academy</p><h2>請選擇一個學院</h2></div>
   <div class="wiz-card" data-wiz></div>
   <div id="acad-grid" class="acad-grid"></div>
@@ -419,11 +473,6 @@ textarea:focus{border-color:var(--gold)}
     </div>
     <button id="btn-teacher" class="btn ghost small" type="button">教授辦公室</button>
   </header>
-  <div class="roster">
-    <label for="inp-name">巫師名冊</label>
-    <input type="text" id="inp-name" maxlength="20" placeholder="寫下你的名字或座號，例如：5年3班 12號 小美">
-    <small>闖關進度、星星和魔法師等級都會記在你的名字底下。</small>
-  </div>
   <div class="wiz-card" data-wiz></div>
   <div id="home-msg" class="notice warn" hidden></div>
   <h2 class="sec-title">選一本試煉之書 <span>Choose your spellbook</span></h2>
@@ -1687,7 +1736,7 @@ function buildStages(tl, track, size) {
 function progKey(song, track, mode) { return `${playerName()}|${song.id}|${song.stageSize || 4}|${track.key}|${mode}`; }
 function getProg(song, track, mode) { const all = LS.get('cpc-progress', {}); return all[progKey(song, track, mode)] || { s: {}, boss: -1 }; }
 function setProg(song, track, mode, p) { const all = LS.get('cpc-progress', {}); all[progKey(song, track, mode)] = p; LS.set('cpc-progress', all); }
-function playerName() { return ($('#inp-name').value || '').trim() || '無名巫師'; }
+function playerName() { return isClass() ? curClass : (($('#inp-name').value || '').trim() || '無名巫師'); }
 
 /* ================= practice session ================= */
 class Session {
@@ -2031,7 +2080,7 @@ function show(id) {
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-go]'); if (!b) return;
   const to = b.dataset.go;
-  if (to === 'home') renderHome(); if (to === 'map') renderMap(); if (to === 'academy') renderAcademy();
+  if (to === 'home') renderHome(); if (to === 'map') renderMap(); if (to === 'academy') { renderAcademy(); renderWiz(); }
   show(to);
 });
 
@@ -3168,7 +3217,7 @@ if (!prac.under) prac.under = prac.showLyrics === false ? 'none' : 'lyrics';
 if (!prac.game) prac.game = 'coin';
 
 /* ================= wizard level & pet ================= */
-const WIZ_LV = [[0, '見習魔法師'], [60, '魔導學徒'], [150, '魔語使者'], [320, '星光法師'], [550, '月光術士'], [850, '元素法師'], [1250, '星辰賢者'], [1800, '大魔導師'], [2500, '星鋼守護者'], [3400, '傳奇大魔法師']];
+const WIZ_LV = [[0, '見習魔法師'], [100, '魔導學徒'], [300, '魔語使者'], [650, '星光法師'], [1200, '月光術士'], [2000, '元素法師'], [3200, '星辰賢者'], [5000, '大魔導師'], [7500, '星鋼守護者'], [11000, '傳奇大魔法師']];
 const PETS = [
   { n: '雪羽傳信鴞', r: 'N', d: '忠誠又聰明的雪白貓頭鷹，最會幫忙送信。' },
   { n: '星瞳靈貓', r: 'N', d: '一藍一紫的眼睛，額頭有小小的星紋，很神秘。' },
@@ -3190,17 +3239,20 @@ const PETS = [
   { n: '曙光翼獅', r: 'SSR', d: '長著翅膀的獅子，高貴又勇敢。' }
 ];
 const RARITY = { N: { t: '普通', s: '★', w: 10, c: '#b2a8cf' }, SR: { t: '稀有', s: '★★', w: 5, c: '#9d86ff' }, SSR: { t: '傳說', s: '★★★', w: 2, c: '#ffcf4a' } };
-const TICKET_XP = 100;
+const ticketCum = k => 80 * k + 20 * k * (k - 1);   // coins needed for the k-th extra summon: 80, 200, 360, 560 ... (each costs 40 more)
 function coinValue(devCents, th) { return devCents <= th.a ? 3 : devCents <= (th.a + th.b) / 2 ? 2 : 1; }
 function wizLevel(xp) {
   let i = 0; while (i + 1 < WIZ_LV.length && xp >= WIZ_LV[i + 1][0]) i++;
   const nx = WIZ_LV[i + 1];
   return { lv: i + 1, title: WIZ_LV[i][1], base: WIZ_LV[i][0], next: nx ? nx[0] : null, nextTitle: nx ? nx[1] : '', pct: nx ? (xp - WIZ_LV[i][0]) / (nx[0] - WIZ_LV[i][0]) : 1 };
 }
-function wizKey() { return ($('#inp-name').value || '').trim() || '無名巫師'; }
-function wizGet() { const all = LS.get('cpc-wiz', {}); const w = Object.assign({ xp: 0, pet: '', gender: '', pets: [] }, all[wizKey()] || {}); if (!Array.isArray(w.pets)) w.pets = []; return w; }
+let playMode = LS.get('cpc-mode', 'solo'), curClass = LS.get('cpc-class', '');
+const isClass = () => playMode === 'class' && !!curClass;
+function wizKey() { return isClass() ? '班級｜' + curClass : (($('#inp-name').value || '').trim() || '無名巫師'); }
+function wizGet() { const all = LS.get('cpc-wiz', {}); const w = Object.assign({ xp: 0, pet: '', gender: '', pets: [] }, all[wizKey()] || {}); if (!Array.isArray(w.pets)) w.pets = []; if (isClass()) w.gender = 'duo'; return w; }
 function wizSet(w) { const all = LS.get('cpc-wiz', {}); all[wizKey()] = w; LS.set('cpc-wiz', all); }
-const ticketsEarned = xp => 1 + Math.floor(xp / TICKET_XP);
+function ticketsEarned(xp) { let k = 0; while (k < PETS.length && ticketCum(k + 1) <= xp) k++; return 1 + k; }
+const nextTicketAt = xp => ticketCum(ticketsEarned(xp));
 function ticketsLeft(w) { return Math.max(0, Math.min(PETS.length - w.pets.length, ticketsEarned(w.xp) - w.pets.length)); }
 function petActive(w) { return w.pets.includes(w.active) ? w.active : (w.pets.length ? w.pets[0] : null); }
 function wizAdd(n) {
@@ -3208,13 +3260,13 @@ function wizAdd(n) {
   const a = wizLevel(before), b = wizLevel(w.xp);
   return { before, after: w.xp, lvA: a, lvB: b, up: b.lv > a.lv, newTickets: Math.min(ticketsEarned(w.xp) - ticketsEarned(before), PETS.length), left: ticketsLeft(w) };
 }
-function wizImg(lv, gender, cls) { return `<img class="${cls || 'av'}" src="${ASSETS[gender === 'm' ? 'm' : 'f'][Math.max(0, Math.min(9, lv - 1))]}" alt="Lv.${lv} ${WIZ_LV[lv - 1][1]}的造型">`; }
+function wizImg(lv, gender, cls) { if (gender === 'duo') return `<span class="duo">${wizImg(lv, 'f', cls)}${wizImg(lv, 'm', cls)}</span>`; return `<img class="${cls || 'av'}" src="${ASSETS[gender === 'm' ? 'm' : 'f'][Math.max(0, Math.min(9, lv - 1))]}" alt="Lv.${lv} ${WIZ_LV[lv - 1][1]}的造型">`; }
 function petImgTag(i, cls) { return `<img class="${cls || 'pet'}" src="${ASSETS.p[i]}" alt="${esc(PETS[i].n)}">`; }
 function renderWiz() {
-  const w = wizGet(), L = wizLevel(w.xp), name = wizKey(), pi = petActive(w), left = ticketsLeft(w);
+  const w = wizGet(), L = wizLevel(w.xp), name = isClass() ? curClass : wizKey(), pi = petActive(w), left = ticketsLeft(w);
   $$('[data-wiz]').forEach(el => {
-    if (!w.gender) {
-      el.innerHTML = `<div class="wi"><div class="wn">${esc(name)}，選擇你的魔法師</div><div class="wl">選好之後，唱歌吃金幣就能升等、換上更厲害的造型。之後也可以再換。</div>
+    if (!w.gender || (!isClass() && w.gender === 'duo')) {
+      el.innerHTML = `<div class="wi"><div class="wn">${esc(name === '無名巫師' ? '' : name + '，')}選擇你的魔法師</div><div class="wl">選好之後，唱歌吃金幣就能升等、換上更厲害的造型。之後也可以再換。</div>
         <div class="gender-pick">${['f', 'm'].map(g => `<button type="button" data-g="${g}">${wizImg(1, g, 'gp')}<span>${g === 'f' ? '女魔法師' : '男魔法師'}</span></button>`).join('')}</div></div>`;
       el.querySelectorAll('[data-g]').forEach(b => b.addEventListener('click', () => { const v = wizGet(); v.gender = b.dataset.g; wizSet(v); renderWiz(); }));
       return;
@@ -3227,10 +3279,10 @@ function renderWiz() {
       <div class="wl">🪙 ${w.xp} 金幣${L.next ? `・再吃 ${L.next - w.xp} 枚升到「${L.nextTitle}」` : '・已經是最高等級！'}</div>
       <div class="pet-row">${pi != null ? `${petImgTag(pi, 'pet-cur')}<div><b>${esc(PETS[pi].n)}</b> <small style="color:${RARITY[PETS[pi].r].c}">${RARITY[PETS[pi].r].s} ${RARITY[PETS[pi].r].t}</small><label class="petname">名字<input type="text" maxlength="8" value="${esc(w.pet || '')}" placeholder="幫牠取名字" aria-label="幫你的寵物取名字"></label></div>` : '<div class="wl">你還沒有契約寵物，先召喚一隻吧！</div>'}
         <button type="button" class="btn ${left ? 'primary' : 'soft'} small summon-btn" ${left ? '' : 'disabled'}>🔮 召喚寵物${left ? `（${left} 次）` : ''}</button></div>
-      ${!left && w.pets.length < PETS.length ? `<div class="wl">每累積 ${TICKET_XP} 枚金幣就能再召喚一次（還差 ${TICKET_XP - w.xp % TICKET_XP} 枚）</div>` : ''}
-      <div class="seg gseg" role="group" aria-label="魔法師造型"><button type="button" data-g="f" aria-pressed="${w.gender === 'f'}">女魔法師</button><button type="button" data-g="m" aria-pressed="${w.gender === 'm'}">男魔法師</button></div></div>
+      ${!left && w.pets.length < PETS.length ? `<div class="wl">再吃 ${nextTicketAt(w.xp) - w.xp} 枚金幣就能再召喚一次（每次召喚需要的金幣會越來越多）</div>` : ''}
+      ${isClass() ? '<div class="wl">班級模式：全班一起累積金幣，雙魔法師一起升等。</div>' : `<div class="seg gseg" role="group" aria-label="魔法師造型"><button type="button" data-g="f" aria-pressed="${w.gender === 'f'}">女魔法師</button><button type="button" data-g="m" aria-pressed="${w.gender === 'm'}">男魔法師</button></div>`}</div>
       <details class="dex-box"><summary>寵物圖鑑（${w.pets.length} / ${PETS.length}）</summary><p>點一下已經召喚到的寵物，就能帶牠一起唱歌。普通 ★、稀有 ★★、傳說 ★★★，傳說寵物最難召喚！</p><div class="dex-grid">${dex}</div></details>
-      <details><summary>魔法師等級表</summary><p style="margin:6px 0 0">在「🪙 寵物吃金幣」模式唱歌，寵物吃到的金幣就是你的魔法經驗值。唱得越準，一枚金幣越值錢（最準 +3），連吃 10 枚再加 5；過關還有星星獎勵。每 ${TICKET_XP} 枚金幣可以召喚一隻新寵物。</p><div class="lv-table">${table}</div></details>`;
+      <details><summary>魔法師等級表</summary><p style="margin:6px 0 0">在「🪙 寵物吃金幣」模式唱歌，寵物吃到的金幣就是你的魔法經驗值。唱得越準，一枚金幣越值錢（最準 +3），連吃 10 枚再加 5；過關還有星星獎勵。累積金幣也能召喚新寵物，第一次免費，之後需要的金幣一次比一次多（80、120、160…）。等級越高，升下一級需要的金幣也越多。</p><div class="lv-table">${table}</div></details>`;
     const inp = el.querySelector('.petname input'); if (inp) inp.addEventListener('change', e => { const v = wizGet(); v.pet = e.target.value.trim(); wizSet(v); });
     el.querySelectorAll('.gseg [data-g]').forEach(b => b.addEventListener('click', () => { const v = wizGet(); v.gender = b.dataset.g; wizSet(v); renderWiz(); }));
     el.querySelectorAll('.dex[data-i]:not([disabled])').forEach(b => b.addEventListener('click', () => { const v = wizGet(); if (v.active !== +b.dataset.i) v.pet = ''; v.active = +b.dataset.i; wizSet(v); renderWiz(); }));
@@ -3265,7 +3317,7 @@ function renderResWiz(r) {
   const who = pi != null ? `${esc(PETS[pi].n)}${w.pet ? `「${esc(w.pet)}」` : ''}` : '你的魔法鳥';
   const startPct = r.up ? 0 : a.pct;
   box.innerHTML = `${w.gender ? wizImg(b.lv, w.gender) : ''}<div class="rw">
-    ${r.up ? `<div class="lvup">✦ 升級了！Lv.${b.lv}「${esc(b.title)}」${w.gender ? '・換上新造型' : ''}</div>` : ''}
+    ${r.up ? `<div class="lvup">✦ ${isClass() ? esc(curClass) + ' ' : ''}升級了！Lv.${b.lv}「${esc(b.title)}」${w.gender ? '・換上新造型' : ''}</div>` : ''}
     <div class="coins">${who} 吃到 <b>${r.coins}</b> 枚金幣${r.perfect ? `（完美 ${r.perfect} 次）` : ''}${r.bonus ? `・過關獎勵 +${r.bonus}` : ''}</div>
     ${r.newTickets > 0 && r.left ? `<div class="wl" style="color:var(--good)">🔮 獲得 ${r.newTickets} 次寵物召喚！<button type="button" class="btn primary small" id="res-summon">現在召喚</button></div>` : ''}
     <div class="xpbar"><i style="width:${(startPct * 100).toFixed(1)}%"></i></div>
@@ -3603,7 +3655,40 @@ function enterAcademy(folder) {
   goAcademy(folder);
 }
 if (!CL && /^https?:$/.test(location.protocol)) $('#lnk-tut').hidden = false;
-$('#btn-start-game').addEventListener('click', () => { renderAcademy(); renderWiz(); show('academy'); });
+$('#btn-start-game').addEventListener('click', () => show('mode'));
+$('#btn-mode-solo').addEventListener('click', () => { playMode = 'solo'; LS.set('cpc-mode', playMode); renderWiz(); $('#wiz-go-msg').textContent = ''; show('wizard'); });
+$('#btn-mode-class').addEventListener('click', () => { playMode = 'class'; LS.set('cpc-mode', playMode); renderClasses(); show('class'); });
+$('#btn-wiz-go').addEventListener('click', () => {
+  if (!wizGet().gender || wizGet().gender === 'duo') { $('#wiz-go-msg').textContent = '先選一位男魔法師或女魔法師喔！'; return; }
+  renderAcademy(); renderWiz(); show('academy');
+});
+function classList() { return LS.get('cpc-classes', []); }
+function renderClasses() {
+  const g = $('#class-grid'), cl = classList(), all = LS.get('cpc-wiz', {});
+  g.innerHTML = cl.length ? '' : '<div class="empty">還沒有班級。在下面輸入班級名稱，按「新增」。</div>';
+  cl.forEach(c => {
+    const w = all['班級｜' + c] || { xp: 0, pets: [] }, L = wizLevel(w.xp || 0);
+    const b = document.createElement('div'); b.className = 'class-card'; b.setAttribute('role', 'button'); b.tabIndex = 0;
+    b.innerHTML = `${wizImg(L.lv, 'duo', 'av')}<div><b>${esc(c)}</b><small>Lv.${L.lv} ${esc(L.title)}<br>🪙 ${w.xp || 0} 金幣・寵物 ${(w.pets || []).length} / ${PETS.length}</small></div><button type="button" class="class-del" aria-label="刪除${esc(c)}">×</button>`;
+    const pick = () => { curClass = c; playMode = 'class'; LS.set('cpc-class', c); LS.set('cpc-mode', 'class'); renderAcademy(); renderWiz(); show('academy'); };
+    b.addEventListener('click', e => { if (e.target.closest('.class-del')) return; pick(); });
+    b.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+    b.querySelector('.class-del').addEventListener('click', e => {
+      const x = e.currentTarget;
+      if (!x.dataset.arm) { x.dataset.arm = '1'; x.textContent = '再按一次刪除（金幣和寵物也會刪除）'; x.classList.add('armed'); setTimeout(() => { if (x.isConnected) { delete x.dataset.arm; x.textContent = '×'; x.classList.remove('armed'); } }, 3500); return; }
+      LS.set('cpc-classes', classList().filter(x => x !== c));
+      const a = LS.get('cpc-wiz', {}); delete a['班級｜' + c]; LS.set('cpc-wiz', a);
+      if (curClass === c) { curClass = ''; LS.set('cpc-class', ''); }
+      renderClasses();
+    });
+    g.appendChild(b);
+  });
+}
+$('#class-add').addEventListener('submit', e => {
+  e.preventDefault(); const v = $('#inp-class').value.trim(); if (!v) return;
+  const cl = classList(); if (!cl.includes(v)) { cl.push(v); LS.set('cpc-classes', cl); }
+  $('#inp-class').value = ''; renderClasses();
+});
 renderWiz();
 
 

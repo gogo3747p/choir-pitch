@@ -416,6 +416,7 @@ textarea:focus{border-color:var(--gold)}
     </div>
   </div>
   <div id="map-msg" class="notice" hidden></div>
+  <p id="rules-hint" class="hint" style="text-align:center"></p>
   <div id="tower" class="tower"></div>
   <details class="panel" id="free-panel">
     <summary>自由練習室：自己選小節</summary>
@@ -525,7 +526,8 @@ textarea:focus{border-color:var(--gold)}
       <p id="t-msg" class="ok-msg" hidden></p>
     </div>
     <div class="panel">
-      <h3 class="ptitle">試煉規則</h3>
+      <h3 class="ptitle">預設試煉規則 <span>Default rules</span></h3>
+      <p class="hint">每首歌沒有另外設定時，就用這裡的規則。要讓某首歌不一樣，請到「編輯歌曲」裡的「這首歌的試煉規則」設定。</p>
       <div class="row" style="align-items:center">
         <div class="field"><span>音準標準</span>
           <div class="seg" id="seg-strict"><button type="button" data-v="easy">寬鬆</button><button type="button" data-v="standard">標準</button><button type="button" data-v="strict">嚴格</button></div>
@@ -640,6 +642,17 @@ textarea:focus{border-color:var(--gold)}
     <div class="btn-row"><button id="btn-ly-apply" class="btn primary small" type="button">套用歌詞</button><button id="btn-ly-all" class="btn soft small" type="button">套用到所有練習聲部</button><button id="btn-ly-clear" class="btn ghost small" type="button">清除這個聲部的歌詞</button></div>
     <p id="ly-msg" class="hint"></p>
   </div>
+  <div class="panel" id="rules-panel">
+    <h3 class="step"><b>⚖</b>這首歌的試煉規則</h3>
+    <p class="hint">選「跟隨預設」就用教授辦公室的預設規則；改成其他選項，只會影響這首歌。</p>
+    <div class="row">
+      <label class="field"><span>音準標準</span><select id="er-strict"><option value="">跟隨預設</option><option value="easy">寬鬆（差 40 音分內算命中）</option><option value="standard">標準（30 音分）</option><option value="strict">嚴格（20 音分）</option></select></label>
+      <label class="field"><span>唱高或低八度</span><select id="er-octave"><option value="">跟隨預設</option><option value="1">也算對</option><option value="0">不算對</option></select></label>
+      <label class="field"><span>關卡開放</span><select id="er-unlockAll"><option value="">跟隨預設</option><option value="1">全部直接開放（自選段落）</option><option value="0">依序過關才解鎖</option></select></label>
+      <label class="field"><span>過關需要幾顆星</span><select id="er-passStars"><option value="">跟隨預設</option><option value="3">3 顆星</option><option value="4">4 顆星</option><option value="5">5 顆星</option><option value="6">6 顆星</option><option value="7">7 顆星</option><option value="8">8 顆星</option></select></label>
+      <label class="field"><span>換氣緩衝</span><select id="er-breath"><option value="">跟隨預設</option><option value="0.2">短（0.2 秒）</option><option value="0.35">標準（0.35 秒）</option><option value="0.5">長（0.5 秒）</option><option value="0.7">很長（0.7 秒）</option></select></label>
+    </div>
+  </div>
   <div class="panel">
     <h3 class="step"><b>4</b>試聽檢查</h3>
     <div class="row">
@@ -706,7 +719,10 @@ const hexA = (h, a) => { const n = parseInt(h.slice(1), 16); return `rgba(${n>>1
 const fmtDur = s => { s = Math.max(0, Math.round(s)); return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); };
 const frameScore = (c, th) => { c = Math.abs(c); return c <= th.a ? 1 : c <= th.b ? 0.7 : c <= th.c ? 0.3 : 0; };
 const stars10 = sc => sc == null || sc < 0 ? 0 : Math.max(1, Math.min(10, Math.round(sc / 10)));
-const passed = sc => sc != null && sc >= 0 && stars10(sc) >= (settings.passStars || 6);
+let RULES_SONG = null;
+const RULE_KEYS = ['strict', 'octave', 'unlockAll', 'passStars', 'breath'];
+function rule(k, song) { const sg = song || RULES_SONG || (typeof S !== 'undefined' ? S.song : null); const r = sg && sg.rules; return r && r[k] !== undefined && r[k] !== '' && r[k] !== null ? r[k] : settings[k]; }
+const passed = sc => sc != null && sc >= 0 && stars10(sc) >= (rule('passStars') || 6);
 const ROMAN = n => { const t = [[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']]; let s = ''; for (const [v, r] of t) while (n >= v) { s += r; n -= v; } return s; };
 const LS = {
   get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
@@ -1123,7 +1139,7 @@ const DB = {
   put(o) { return this.db ? this.req('readwrite', s => s.put(o)) : Promise.reject(new Error('此瀏覽器無法儲存')); },
   del(id) { return this.db ? this.req('readwrite', s => s.delete(id)) : Promise.resolve(); }
 };
-const SONG_FIELDS = ['id','title','xml','audio','audioB64','audioName','audioType','offset','tempoScale','trackCfg','stageSize','jianpu','chords','folder','password','replaces','doKey','created'];
+const SONG_FIELDS = ['id','title','xml','audio','audioB64','audioName','audioType','offset','tempoScale','trackCfg','stageSize','jianpu','chords','folder','password','replaces','doKey','rules','created'];
 const plainSong = s => { const o = {}; for (const k of SONG_FIELDS) if (s[k] !== undefined) o[k] = s[k]; return o; };
 const hasAudio = s => !!(s.audio || s.audioB64);
 function getScore(s) { if (!s._score) s._score = parseMusicXML(s.xml); return s._score; }
@@ -1584,13 +1600,13 @@ class Session {
     }
     const Sx = tl.measures[k0].t0, E = tl.measures[k1].t1;
     this.Sx = Sx; this.E = E;
-    this.notes = setWindows(tr.notes.filter(n => n.t0 >= Sx - 1e-3 && n.t0 < E - 1e-3).map(n => Object.assign({}, n, { lh: 0, lt: 0 })), settings.breath);
+    this.notes = setWindows(tr.notes.filter(n => n.t0 >= Sx - 1e-3 && n.t0 < E - 1e-3).map(n => Object.assign({}, n, { lh: 0, lt: 0 })), rule('breath', this.song));
     this.others = tl.tracks.filter(t => t !== tr && t.role === 'sing');
     this.dust = []; this.dustI = 0; this.dustGot = 0;
     for (const n of this.notes) { const L = Math.max(0.05, n.wb - n.wa), kk = Math.max(1, Math.round(L / 0.32)); for (let j = 0; j < kk; j++) this.dust.push({ t: n.wa + (j + 0.5) * L / kk, m: n.midi, got: false, miss: false }); }
     if (this.mic) this.updDust();
     this.view = viewRange(this.notes);
-    this.th = STRICT[settings.strict] || STRICT.standard;
+    this.th = STRICT[rule('strict', this.song)] || STRICT.standard; this.octave = !!rule('octave', this.song);
     const m0 = tl.measures[k0];
     const ts = m0.ts;
     let beatSec = 60 / tl.bpmAt(m0.q0) * (4 / ts[1]);
@@ -1723,7 +1739,7 @@ class Session {
       let d = m, ok = null;
       if (m != null) {
         const ref = tgt ? tgt.midi : this.lastRef;
-        if (ref != null && settings.octave) d = m - 12 * Math.round((m - ref) / 12);
+        if (ref != null && this.octave) d = m - 12 * Math.round((m - ref) / 12);
         if (tgt) { const s = frameScore((d - tgt.midi) * 100, this.th); ok = s >= 1 ? 2 : s > 0.25 ? 1 : 0; }
       }
       const tt = ft - 0.12;
@@ -1733,7 +1749,7 @@ class Session {
       for (let j = this.dustI; j < this.dust.length; j++) {
         const du = this.dust[j]; if (du.t > ft + 0.05) break;
         if (du.got || du.miss || m == null) continue;
-        const dm = settings.octave ? m - 12 * Math.round((m - du.m) / 12) : m;
+        const dm = this.octave ? m - 12 * Math.round((m - du.m) / 12) : m;
         if (ft >= du.t - 0.05 && ft <= du.t + 0.25 && Math.abs(dm - du.m) * 100 <= this.th.b) { du.got = true; this.dustGot++; this.dustBurst(du); }
       }
       while (this.dustI < this.dust.length) { const du = this.dust[this.dustI]; if (du.got) { this.dustI++; continue; } if (du.t < ft - 0.25) { du.miss = true; this.dustI++; continue; } break; }
@@ -1811,7 +1827,7 @@ class Session {
 }
 
 function scoreRun(notes, frames, th, fold, cutoff) {
-  setWindows(notes, settings.breath);
+  setWindows(notes, rule('breath'));
   const ns = notes.filter(n => n.t1 <= cutoff + 0.05);
   if (!ns.length) return null;
   let best = null;
@@ -2030,6 +2046,7 @@ function folderSelect(sel, value) {
   sel.value = value || '';
 }
 function openSong(s) {
+  RULES_SONG = s;
   if (S.song !== s) S.trackIdx = -1;
   S.song = s; S.tl = getTL(s);
   const sing = S.tl.tracks.map((t, i) => [t, i]).filter(([t]) => t.role === 'sing');
@@ -2061,6 +2078,7 @@ function renderMap() {
   f.value = pf && +pf < tl.measures.length ? pf : 0; to.value = pt && +pt < tl.measures.length ? pt : tl.measures.length - 1;
   renderPrac();
   renderTower();
+  $('#rules-hint').textContent = rulesSummary(S.song);
 }
 function renderTower() {
   const tw = $('#tower'), msg = $('#map-msg'); tw.innerHTML = '';
@@ -2076,7 +2094,7 @@ function renderTower() {
   // show top of tower first: reverse so stage I is at the bottom
   const rows = items.map(it => {
     const best = it.type === 'boss' ? prog.boss : (prog.s[it.i] ?? -1);
-    const unlocked = settings.unlockAll || (it.type === 'boss' ? allPassed : it.i === 0 || passed(prog.s[it.i - 1] ?? -1));
+    const unlocked = rule('unlockAll') || (it.type === 'boss' ? allPassed : it.i === 0 || passed(prog.s[it.i - 1] ?? -1));
     let isNext = false;
     if (unlocked && !passed(best) && !nextMarked) { isNext = true; nextMarked = true; }
     const name = it.type === 'boss' ? '最終試煉：星辰聖殿' : `${STAGE_NAMES[it.i % STAGE_NAMES.length]}`;
@@ -2165,7 +2183,8 @@ $('#vol-guide').addEventListener('input', e => { if (S.session && S.session.guid
 
 function endPractice(sess, cutoff, early) {
   try { if (wakeLock) wakeLock.release(); } catch (e) {} wakeLock = null;
-  const res = scoreRun(sess.notes, sess.frames, sess.th, settings.octave, cutoff);
+  RULES_SONG = sess.song;
+  const res = scoreRun(sess.notes, sess.frames, sess.th, !!rule('octave', sess.song), cutoff);
   if (!res) { renderMap(); show('map'); return; }
   res.early = early && cutoff < sess.E;
   res.maxCombo = sess.maxCombo;
@@ -2179,7 +2198,7 @@ function endPractice(sess, cutoff, early) {
     else {
       prevBest = prog.s[st.i] ?? -1;
       prog.s[st.i] = Math.max(prevBest, score);
-      if (!passed(prevBest) && passed(score) && !settings.unlockAll) {
+      if (!passed(prevBest) && passed(score) && !rule('unlockAll')) {
         if (st.i + 1 < S.stages.length) unlocked = `新關卡解鎖：第 ${st.i + 1 + 1} 關「${STAGE_NAMES[(st.i + 1) % STAGE_NAMES.length]}」`;
         else if (S.stages.length > 1 && !wasAll && S.stages.every((_, i) => passed(prog.s[i] ?? -1))) unlocked = '最終試煉「星辰聖殿」的大門打開了！';
       }
@@ -2204,7 +2223,7 @@ function renderResult(sess, res, prevBest, unlocked) {
   const score = Math.round(res.total), st = sess.stage;
   const stars = stars10(score);
   const ok = !res.early && passed(score);
-  const need = settings.passStars || 6;
+  const need = rule('passStars') || 6;
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   $('#res-stars').innerHTML = Array.from({ length: 10 }, (_, i) => STAR(i < stars)).join('');
   $$('#res-stars svg.on').forEach((el, i) => { el.style.animationDelay = (i * 0.12) + 's'; });
@@ -2232,10 +2251,10 @@ function renderResult(sess, res, prevBest, unlocked) {
   if (!st.free && !st.boss && !res.early) {
     const prog = getProg(sess.song, sess.track, sess.mode);
     const nextI = st.i + 1;
-    if (nextI < S.stages.length && (settings.unlockAll || passed(prog.s[st.i] ?? -1))) {
+    if (nextI < S.stages.length && (rule('unlockAll') || passed(prog.s[st.i] ?? -1))) {
       nb.hidden = false; nb.textContent = `前往第 ${nextI + 1} 關 →`;
       nb.onclick = () => { S.range = S.stages[nextI].slice(); S.stage = { i: nextI, name: STAGE_NAMES[nextI % STAGE_NAMES.length] }; startPractice(); };
-    } else if (nextI >= S.stages.length && S.stages.length > 1 && (settings.unlockAll || S.stages.every((_, i) => passed(prog.s[i] ?? -1)))) {
+    } else if (nextI >= S.stages.length && S.stages.length > 1 && (rule('unlockAll') || S.stages.every((_, i) => passed(prog.s[i] ?? -1)))) {
       nb.hidden = false; nb.textContent = '挑戰最終試煉 →';
       nb.onclick = () => { S.range = [0, S.tl.measures.length - 1]; S.stage = { boss: true, name: '最終試煉：星辰聖殿' }; startPractice(); };
     }
@@ -2701,7 +2720,7 @@ function renderTeacher() {
     if (isLocked(s)) info = '已加密，請先在學生首頁輸入密碼解鎖';
     else try { const tl = getTL(s); info = `${tl.tracks.filter(t => t.role === 'sing').map(t => t.label).join('、')} · ${tl.measures.length} 小節 · ${hasAudio(s) ? '伴奏：' + (s.audioName || '音檔') : s.chords ? '鋼琴伴奏（和弦）' : '合成伴奏'}`; }
     catch (e) { info = '樂譜讀取失敗'; }
-    row.innerHTML = `<div class="tt"><b>${esc(s.title || '未命名歌曲')}${s.demo ? '（範例）' : s.embedded ? '（內建）' : ''}${folderPassword(s) || s.locked ? '（資料夾有密碼）' : ''}</b><span>${esc(info)}</span></div>`;
+    row.innerHTML = `<div class="tt"><b>${esc(s.title || '未命名歌曲')}${s.demo ? '（範例）' : s.embedded ? '（內建）' : ''}${folderPassword(s) || s.locked ? '（資料夾有密碼）' : ''}${s.rules && RULE_KEYS.some(k => s.rules[k] !== undefined && s.rules[k] !== '') ? '（自訂試煉規則）' : ''}</b><span>${esc(info)}</span></div>`;
     const btns = document.createElement('div'); btns.className = 'btn-row';
     if (!s.demo) {
       const lab = document.createElement('label'); lab.className = 'mv'; lab.innerHTML = '<span>放到</span><select></select>';
@@ -2759,7 +2778,7 @@ $('#btn-clear-rec').addEventListener('click', e => armButton(e.currentTarget, '�
 
 function folderPassword(s) { return normPw((settings.folderPw || {})[s.folder || ''] || s.password || ''); }
 async function packSong(s, forStudent) {
-  const o = { app: 'choir-pitch-challenge', v: 1, title: s.title, xml: s.xml, offset: s.offset || 0, tempoScale: s.tempoScale || 1, trackCfg: s.trackCfg || {}, stageSize: s.stageSize || 4, jianpu: s.jianpu || '', chords: s.chords || '', folder: s.folder || '', doKey: s.doKey ?? '' };
+  const o = { app: 'choir-pitch-challenge', v: 1, title: s.title, xml: s.xml, offset: s.offset || 0, tempoScale: s.tempoScale || 1, trackCfg: s.trackCfg || {}, stageSize: s.stageSize || 4, jianpu: s.jianpu || '', chords: s.chords || '', folder: s.folder || '', doKey: s.doKey ?? '', rules: s.rules || {} };
   if (s.audioB64) { o.audioB64 = s.audioB64; }
   else if (s.audio) o.audioB64 = await abToB64(s.audio);
   if (o.audioB64) { o.audioName = s.audioName || ''; o.audioType = s.audioType || ''; }
@@ -2780,7 +2799,7 @@ $('#inp-import').addEventListener('change', async e => {
       for (const o of (Array.isArray(data) ? data : [data])) {
         if (!o || typeof o.xml !== 'string') throw new Error(o && o.locked ? '這是加密的學生版歌曲，請匯入未加密的歌曲包' : '不是歌曲包檔案');
         parseMusicXML(o.xml);
-        const s = { id: 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), title: o.title || '匯入的歌曲', xml: o.xml, offset: +o.offset || 0, tempoScale: +o.tempoScale || 1, trackCfg: o.trackCfg || {}, stageSize: +o.stageSize || 4, jianpu: o.jianpu || '', chords: o.chords || '', folder: o.folder || '', doKey: o.doKey ?? '', created: Date.now() };
+        const s = { id: 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), title: o.title || '匯入的歌曲', xml: o.xml, offset: +o.offset || 0, tempoScale: +o.tempoScale || 1, trackCfg: o.trackCfg || {}, stageSize: +o.stageSize || 4, jianpu: o.jianpu || '', chords: o.chords || '', folder: o.folder || '', doKey: o.doKey ?? '', rules: o.rules || {}, created: Date.now() };
         if (s.folder && !validFolderName(s.folder)) { settings.folders = settings.folders || []; settings.folders.push(s.folder); saveSettings(); }
         if (o.audioB64) { s.audio = b64ToAb(o.audioB64); s.audioName = o.audioName || ''; s.audioType = o.audioType || ''; }
         await DB.put(plainSong(s)); S.songs.push(s); n++;
@@ -2813,7 +2832,8 @@ function openEditor(s) {
   ED.src = s && !s.embedded ? s : null;
   $('#ed-title').textContent = s && !s.embedded ? '編輯歌曲' : '新增歌曲';
   $('#ed-name').value = ED.song.title || '';
-  folderSelect($('#ed-folder'), s ? (ED.song.folder || '') : (curFolder !== '*' && curFolder !== DEMO_FOLDER ? curFolder : ''));
+  renderRulesEditor();
+  folderSelect($('#ed-folder'), s ? (ED.song.folder || '') : (curAcademy || (curFolder !== '*' && curFolder !== DEMO_FOLDER ? curFolder : '')));
   $('#ed-offset').value = (ED.song.offset || 0).toFixed(2);
   $('#ed-tempo').value = Math.round((ED.song.tempoScale || 1) * 1000) / 10;
   $('#ed-stage').value = ED.song.stageSize || 4;
@@ -2959,6 +2979,7 @@ $('#btn-ed-save').addEventListener('click', async () => {
   try { const tl = getTL(s); if (!tl.tracks.some(t => t.role === 'sing')) { edError('至少要有一個「練習聲部」'); return; } } catch (e) { edError(e.message); return; }
   s.title = ($('#ed-name').value || '').trim() || '未命名歌曲';
   s.folder = $('#ed-folder').value || '';
+  s.rules = readRulesEditor();
   for (const k of Object.keys(s.trackCfg)) { const c = s.trackCfg[k]; if (!c.label) delete c.label; if (!Object.keys(c).length) delete s.trackCfg[k]; }
   if (!s.id) { s.id = 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); s.created = Date.now(); }
   try { await DB.put(plainSong(s)); }
@@ -3134,7 +3155,7 @@ function drawCert(cv, info) {
   g.fillStyle = '#3d2f22'; fitFont(g, info.sig, 700, 40, SERIF, 430); g.fillText(info.sig, 1575, 1266);
   g.fillStyle = '#8a6524'; g.font = `600 22px ${RUNE}`; g.fillText('STARSONG  ACADEMY', 1575, 1300);
 }
-function certRank(stars) { return stars >= 9 ? '大魔法師' : stars >= 7 ? '高階巫師' : stars >= (settings.passStars || 6) ? '見習巫師' : '魔法學徒'; }
+function certRank(stars) { return stars >= 9 ? '大魔法師' : stars >= 7 ? '高階巫師' : stars >= (rule('passStars') || 6) ? '見習巫師' : '魔法學徒'; }
 function openCert() {
   const run = S.lastRun; if (!run) return;
   const { sess, res } = run; const st = sess.stage;
@@ -3194,7 +3215,7 @@ async function decryptPack(lk, pw) {
 const isLocked = s => !!(s.locked && !s.xml);
 async function unlockSong(s, pw) {
   const o = await decryptPack(s.locked, pw);
-  Object.assign(s, { xml: o.xml, audioB64: o.audioB64 || null, audioName: o.audioName, audioType: o.audioType, offset: +o.offset || 0, tempoScale: +o.tempoScale || 1, trackCfg: o.trackCfg || {}, stageSize: +o.stageSize || 4, jianpu: o.jianpu || '', chords: o.chords || '', doKey: o.doKey ?? '', password: normPw(pw) });
+  Object.assign(s, { xml: o.xml, audioB64: o.audioB64 || null, audioName: o.audioName, audioType: o.audioType, offset: +o.offset || 0, tempoScale: +o.tempoScale || 1, trackCfg: o.trackCfg || {}, stageSize: +o.stageSize || 4, jianpu: o.jianpu || '', chords: o.chords || '', doKey: o.doKey ?? '', rules: o.rules || {}, password: normPw(pw) });
   s._tl = null; s._score = null; s._tlr = null;
   const mem = LS.get('cpc-unlocked', {}); mem[s.locked.salt] = normPw(pw); LS.set('cpc-unlocked', mem);
 }
@@ -3337,13 +3358,46 @@ function renderDoKey() {
 }
 $('#ed-dokey').addEventListener('change', e => { ED.song.doKey = e.target.value === '' ? '' : +e.target.value; });
 
+
+/* ----- per-song trial rules ----- */
+const STRICT_NAME = { easy: '寬鬆', standard: '標準', strict: '嚴格' };
+function ruleLabel(k, v) {
+  if (k === 'strict') return STRICT_NAME[v] || '標準';
+  if (k === 'octave') return v ? '也算對' : '不算對';
+  if (k === 'unlockAll') return v ? '全部直接開放' : '依序過關才解鎖';
+  if (k === 'passStars') return `${v || 6} 顆星`;
+  if (k === 'breath') return `${v ?? 0.35} 秒`;
+  return String(v);
+}
+function renderRulesEditor() {
+  const r = (ED.song && ED.song.rules) || {};
+  for (const k of RULE_KEYS) {
+    const sel = $('#er-' + k);
+    sel.options[0].textContent = `跟隨預設（目前：${ruleLabel(k, settings[k])}）`;
+    const v = r[k];
+    sel.value = v === undefined || v === '' || v === null ? '' : (typeof v === 'boolean' ? (v ? '1' : '0') : String(v));
+  }
+}
+function readRulesEditor() {
+  const out = {};
+  for (const k of RULE_KEYS) {
+    const v = $('#er-' + k).value; if (v === '') continue;
+    out[k] = k === 'octave' || k === 'unlockAll' ? v === '1' : k === 'passStars' || k === 'breath' ? +v : v;
+  }
+  return out;
+}
+function rulesSummary(sg) {
+  if (!sg) return '';
+  return `這首歌的試煉規則：音準${ruleLabel('strict', rule('strict', sg))}・過關要 ${rule('passStars', sg) || 6} 顆星・八度${ruleLabel('octave', rule('octave', sg))}・關卡${rule('unlockAll', sg) ? '全部開放' : '依序解鎖'}`;
+}
+
 /* ================= boot ================= */
 function sortSongs() { S.songs.sort((a, b) => folderIdx(a) - folderIdx(b) || (a.embedded ? 0 : 1) - (b.embedded ? 0 : 1) || (a.created || 0) - (b.created || 0)); }
 async function boot() {
   const songs = [];
   try {
     const emb = JSON.parse($('#embedded-songs').textContent || '[]');
-    emb.forEach((o, i) => songs.push(o.locked ? { id: 'emb' + i, embedded: true, title: o.title, folder: o.folder || '', locked: o.locked, created: i } : { id: 'emb' + i, embedded: true, title: o.title, xml: o.xml, audioB64: o.audioB64 || null, audioName: o.audioName, audioType: o.audioType, offset: +o.offset || 0, tempoScale: +o.tempoScale || 1, trackCfg: o.trackCfg || {}, stageSize: +o.stageSize || 4, jianpu: o.jianpu || '', chords: o.chords || '', folder: o.folder || '', doKey: o.doKey ?? '', created: i }));
+    emb.forEach((o, i) => songs.push(o.locked ? { id: 'emb' + i, embedded: true, title: o.title, folder: o.folder || '', locked: o.locked, created: i } : { id: 'emb' + i, embedded: true, title: o.title, xml: o.xml, audioB64: o.audioB64 || null, audioName: o.audioName, audioType: o.audioType, offset: +o.offset || 0, tempoScale: +o.tempoScale || 1, trackCfg: o.trackCfg || {}, stageSize: +o.stageSize || 4, jianpu: o.jianpu || '', chords: o.chords || '', folder: o.folder || '', doKey: o.doKey ?? '', rules: o.rules || {}, created: i }));
   } catch (e) {}
   await autoUnlock(songs);
   try { await DB.open(); (await DB.all()).forEach(s => songs.push(s)); }

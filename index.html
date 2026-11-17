@@ -731,6 +731,9 @@ textarea:focus{border-color:var(--gold)}
     <div class="btn-row"><button id="btn-jp-apply" class="btn primary small" type="button">套用簡譜</button><button id="btn-jp-help" class="btn ghost small" type="button">寫法說明</button><button id="btn-jp-regen" class="btn ghost small" type="button" hidden>↻ 從樂譜重新轉換</button></div>
     <div id="jp-help" class="jp-help" hidden>
       <code>調: 1=F</code><span>1 是哪個音。沒有記號的 1 在中央 C 到上面的 B 之間</span>
+      <code>速度: 72（寫在聲部中間）</code><span>變速：從下一行開始改成每分鐘 72 拍</span>
+      <code>♩=72</code><span>寫在音符之間，從那個音開始變速（小節中間變速時用）</span>
+      <code>漸慢: 60　漸快: 100</code><span>rit. / accel.：下一行慢慢變到這個速度，之後維持</span>
       <code>調: 1=G（寫在聲部中間）</code><span>轉調：從下一行開始改用新的調。每個聲部都要在同一個地方寫</span>
       <code>拍號: 3/4　速度: 88</code><span>拍號與每分鐘幾拍</span>
       <code>[齊唱]　[第一部]</code><span>聲部名稱。齊唱只要一個聲部；合唱每部各寫一段</span>
@@ -2578,17 +2581,19 @@ function parseJianpu(text) {
     if ((m = /^(標題|曲名|title)\s*[:：]\s*(.*)$/i.exec(line))) { meta.title = m[2].trim(); return; }
     if ((m = /^(轉調|調|調號|key)\s*[:：]\s*(.*)$/i.exec(line))) { const k = parseKey(m[2]); if (cur) cur.toks.push({ line: li + 1, key: k }); else meta.tonic = k; return; }
     if ((m = /^(拍號|拍子|time)\s*[:：]\s*(\d+)\s*\/\s*(\d+)/i.exec(line))) { meta.ts = [+m[2], +m[3]]; return; }
-    if ((m = /^(速度|tempo)\s*[:：]\s*(\d+(\.\d+)?)/i.exec(line))) { meta.bpm = +m[2]; return; }
+    if ((m = /^(速度|tempo)\s*[:：]\s*(\d+(\.\d+)?)/i.exec(line))) { if (cur) cur.toks.push({ line: li + 1, tempo: +m[2] }); else meta.bpm = +m[2]; return; }
+    if ((m = /^(漸慢|漸快|rit\.?|ritard\.?|rall\.?|accel\.?)\s*[:：]\s*(\d+(\.\d+)?)/i.exec(line))) { if (!cur) throw new Error(`第 ${li + 1} 行：「${m[1]}」要寫在聲部裡面`); cur.toks.push({ line: li + 1, tempo: +m[2], ramp: true }); return; }
     if ((m = /^(詞|歌詞|lyrics?)\s*[:：]\s*(.*)$/i.exec(line))) { (cur || getPart('齊唱')).lyr.push(...splitLyrics(m[2])); cur = cur || getPart('齊唱'); return; }
     if (/[0-7]/.test(line)) { cur = cur || getPart('齊唱'); cur.toks.push({ line: li + 1, text: line }); return; }
     throw new Error(`第 ${li + 1} 行看不懂：「${line.slice(0, 30)}」`);
   });
   if (!parts.some(p => p.toks.some(x => x.text))) throw new Error('沒有找到簡譜音符。音符要用 1–7 表示，休止符用 0。');
-  const re = /\|:|:\||\|\||\||-|([#b♯♭]?)([0-7])([',]*)([_\/]*)(\.?)|\S/g;
+  const re = /\|:|:\||\|\||\||-|([#b♯♭]?)([0-7])([',]*)([_\/]*)(\.?)|♩\s*[=＝]\s*(\d+(?:\.\d+)?)|\S/g;
   for (const p of parts.filter(x => !x.isChord)) {
-    const ev = []; const bars = []; const repF = []; const repB = []; const keys = []; let pos = 0, tie = false, tonic = meta.tonic;
-    for (const { line, text, key } of p.toks) {
+    const ev = []; const bars = []; const repF = []; const repB = []; const keys = []; const tempos = []; let pos = 0, tie = false, tonic = meta.tonic, bpmNow = meta.bpm, ramp = null;
+    for (const { line, text, key, tempo, ramp: isRamp } of p.toks) {
       if (key != null) { tonic = key; keys.push({ pos, tonic }); continue; }
+      if (tempo != null) { if (isRamp) ramp = { from: bpmNow, to: tempo, start: pos }; else { tempos.push({ pos, bpm: tempo }); bpmNow = tempo; } continue; }
       let m; re.lastIndex = 0;
       while ((m = re.exec(text))) {
         const t = m[0];
@@ -2609,13 +2614,15 @@ function parseJianpu(text) {
           if (tie && lv && midi != null && lv.midi === midi) { lv.d += d; pos += d; tie = false; continue; }
           tie = false; ev.push({ midi, d, lyric: '' }); pos += d; continue;
         }
+        if (m[6] !== undefined) { tempos.push({ pos, bpm: +m[6] }); bpmNow = +m[6]; continue; }
         if (t === '~') { tie = true; continue; }
         if (/[()^\s]/.test(t)) continue;
         throw new Error(`第 ${line} 行有看不懂的符號「${t}」`);
       }
+      if (ramp && pos > ramp.start + 1e-6) { const n = Math.max(1, Math.ceil(pos - ramp.start - 1e-6)); for (let i = 0; i < n; i++) tempos.push({ pos: ramp.start + i, bpm: Math.round(ramp.from + (ramp.to - ramp.from) * (i + 1) / n) }); bpmNow = ramp.to; ramp = null; }
     }
     let li = 0; for (const e of ev) if (e.midi != null && li < p.lyr.length) e.lyric = p.lyr[li++];
-    p.ev = ev; p.bars = bars; p.repF = repF; p.repB = repB; p.keys = keys; p.len = pos; p.extraLyrics = Math.max(0, p.lyr.length - li);
+    p.ev = ev; p.bars = bars; p.repF = repF; p.repB = repB; p.keys = keys; p.tempos = tempos; p.len = pos; p.extraLyrics = Math.max(0, p.lyr.length - li);
   }
   return { meta, parts: parts.filter(p => !p.isChord && p.ev.length), notes, chords: parts.filter(p => p.isChord).map(p => p.chordLines.join(' ')).join(' ').trim() };
 }
@@ -2637,6 +2644,7 @@ function scoreToJianpu(song) {
   const lyTok = l => { l = String(l || '').trim(); if (!l) return '_'; if (/^[\x00-\x7f]+$/.test(l)) return l.replace(/\s+/g, '-'); const cs = Array.from(l).filter(c => !/[\s，。、！？；：,.!?;:「」『』（）()…—\-_*]/.test(c)); if (!cs.length) return '_'; if (cs.length > 1) warn.add('有些音符的歌詞超過一個字，只保留第一個字'); return cs[0]; };
   const q4 = x => Math.round(x * 4) / 4;
   const out = ['// ※ 從匯入的樂譜自動轉成的簡譜。修改後按「套用簡譜」，就會用這份簡譜取代原本的樂譜。'];
+  if (sc.tmap.length > 1) out.push('// ※ ♩=數字 是從那裡開始的新速度（寫在第一個聲部）。');
   if (sc.tracks.some(t => role(t) === 'acc')) out.push('// ※ 樂譜裡的鋼琴伴奏會保留下來；如果增加或刪除小節，伴奏可能會對不齊。');
   const head = out.length;
   if (song.title) out.push(`標題: ${song.title}`);
@@ -2661,23 +2669,26 @@ function scoreToJianpu(song) {
     if (cur < totalQ - 1e-6) ev.push({ q: cur, e: totalQ, midi: null });
     // emit tokens; '|' when a bar line is reached
     const toks = []; let pos = 0; T = 60 + (TS[0] ?? 0);
+    const tq = ti === 0 ? sc.tmap.slice(1).filter((t, i, a) => Math.round(t.bpm) !== Math.round((i ? a[i - 1] : sc.tmap[0]).bpm)) : []; let tqi = 0;
+    const tempoCheck = () => { while (tqi < tq.length && tq[tqi].q <= pos + 1e-6) { toks.push({ t: `♩=${Math.round(tq[tqi].bpm)}` }); tqi++; } };
     const barCheck = () => { if (isBar(pos)) { toks.push({ bar: true }); const nt = 60 + (TS[kOf(pos)] ?? 0); if (nt !== T) { T = nt; toks.push({ key: T }); } } };
-    const emitRest = (len) => { while (len > 1e-6) { const b = len >= 1 - 1e-6 ? 1 : len >= 0.75 - 1e-6 ? 0.75 : len >= 0.5 - 1e-6 ? 0.5 : 0.25; toks.push({ t: '0' + durMark(b) }); pos += b; len -= b; barCheck(); } };
+    const emitRest = (len) => { while (len > 1e-6) { tempoCheck(); const b = len >= 1 - 1e-6 ? 1 : len >= 0.75 - 1e-6 ? 0.75 : len >= 0.5 - 1e-6 ? 0.5 : 0.25; toks.push({ t: '0' + durMark(b) }); pos += b; len -= b; barCheck(); } };
     for (const e of ev) {
       if (e.midi == null) {
         let a = e.q; const cuts = bars.filter(b => b > a + 1e-6 && b < e.e - 1e-6);
         for (const c of [...cuts, e.e]) { emitRest(c - a); a = c; }
         continue;
       }
+      tempoCheck();
       const inner = bars.filter(b => b > e.q + 1e-6 && b < e.e - 1e-6), cuts = [e.q, ...inner, e.e];
       for (let pi = 0; pi + 1 < cuts.length; pi++) {
         const L = cuts[pi + 1] - cuts[pi], ip = Math.floor(L + 1e-6), fr = Math.round((L - ip) * 4) / 4;
         if (pi === 0) {
           const base = fr === 0.5 && L >= 1.5 ? 1.5 : fr > 0 ? fr : 1;
           toks.push({ t: pitchTok(e.midi) + durMark(base), ly: e.lyric }); pos += base; barCheck();
-          for (let k = 0; k < Math.round(L - base); k++) { toks.push({ t: '-' }); pos += 1; barCheck(); }
+          for (let k = 0; k < Math.round(L - base); k++) { tempoCheck(); toks.push({ t: '-' }); pos += 1; barCheck(); }
         } else {
-          for (let k = 0; k < ip; k++) { toks.push({ t: '-' }); pos += 1; barCheck(); }
+          for (let k = 0; k < ip; k++) { tempoCheck(); toks.push({ t: '-' }); pos += 1; barCheck(); }
           if (fr > 0) { toks.push({ t: '~' }); toks.push({ t: pitchTok(e.midi) + durMark(fr) }); pos += fr; barCheck(); }
         }
       }
@@ -2691,7 +2702,7 @@ function scoreToJianpu(song) {
     const lastM = meas[meas.length - 1]; if (lastM && lastM.t[lastM.t.length - 1] !== '|') lastM.t.push('|');
     const lines = [];
     let carry = null;
-    meas.forEach(m => { const L = lines[lines.length - 1]; const noteless = !m.t.some(x => /[0-7]/.test(x)); if (carry != null && m.key == null && !noteless) { m.key = carry; carry = null; } if (m.key != null && noteless && L) { carry = m.key; m.key = null; } if (L && m.key == null && (L.n < 4 || noteless)) { L.t.push(...m.t); L.ly.push(...m.ly); L.n++; } else lines.push({ t: m.t.slice(), ly: m.ly.slice(), n: 1, key: m.key }); });
+    meas.forEach(m => { const L = lines[lines.length - 1]; const noteless = !m.t.some(x => !x.startsWith('♩') && /[0-7]/.test(x)); if (carry != null && m.key == null && !noteless) { m.key = carry; carry = null; } if (m.key != null && noteless && L) { carry = m.key; m.key = null; } if (L && m.key == null && (L.n < 4 || noteless)) { L.t.push(...m.t); L.ly.push(...m.ly); L.n++; } else lines.push({ t: m.t.slice(), ly: m.ly.slice(), n: 1, key: m.key }); });
     lines.forEach(L => { if (L.key != null) out.push(`調: 1=${KN[L.key % 12]}　// 轉調`); out.push(L.t.join(' ')); if (hasLy && L.ly.length) out.push('詞: ' + L.ly.join(' ')); });
   });
   if (!sc.tracks.some(t => role(t) === 'acc') && song.chords && song.chords.trim()) {
@@ -2708,6 +2719,8 @@ function jianpuToMusicXML(J, acc) {
   const tsl = meta.ts[0] * 4 / meta.ts[1];
   const total = Math.max(...J.parts.map(p => p.len));
   const p0 = J.parts[0];
+  const TEMPOS = []; J.parts.forEach(pp => (pp.tempos || []).forEach(t => { if (!TEMPOS.some(x => Math.abs(x.pos - t.pos) < 1e-6)) TEMPOS.push(t); })); TEMPOS.sort((a, b) => a.pos - b.pos);
+  const t0 = TEMPOS.find(x => x.pos < 1e-6); if (t0) meta.bpm = t0.bpm;
   let bounds = [...new Set(p0.bars.filter(b => b > 1e-6 && b < total - 1e-6).map(b => Math.round(b * 1000) / 1000))].sort((a, b) => a - b);
   if (!bounds.length) { for (let q = tsl; q < total - 1e-6; q += tsl) bounds.push(q); }
   const edges = [0, ...bounds, total];
@@ -2741,6 +2754,7 @@ function jianpuToMusicXML(J, acc) {
         xml += `<attributes><divisions>${DIV}</divisions><key><fifths>${[0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5].indexOf(((meta.tonic % 12) + 12) % 12) > 6 ? [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5].indexOf(((meta.tonic % 12) + 12) % 12) - 12 : [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5].indexOf(((meta.tonic % 12) + 12) % 12)}</fifths></key><time><beats>${meta.ts[0]}</beats><beat-type>${meta.ts[1]}</beat-type></time></attributes>`;
         if (pi === 0) xml += `<direction><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>${meta.bpm}</per-minute></metronome></direction-type><sound tempo="${meta.bpm}"/></direction>`;
       }
+      if (pi === 0) for (const tp of TEMPOS) { if (tp.pos < a - 1e-6 || tp.pos >= b - 1e-6 || tp.pos < 1e-6) continue; const off = Math.round((tp.pos - a) * DIV); const dir = `<direction><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>${tp.bpm}</per-minute></metronome></direction-type><sound tempo="${tp.bpm}"/></direction>`; xml += off ? `<forward><duration>${off}</duration></forward>${dir}<backup><duration>${off}</duration></backup>` : dir; }
       if (mi > 0 && !p.acc) { const kc = (p0.keys || []).filter(x => Math.abs(x.pos - a) < 1e-6).pop(); if (kc) xml += `<attributes><key><fifths>${KEY_FIFTHS(kc.tonic)}</fifths></key></attributes>`; }
       if (pi === 0 && near(p0.repF, a)) xml += '<barline location="left"><repeat direction="forward"/></barline>';
       let filled = 0;
@@ -2781,6 +2795,7 @@ const OCR_PROMPT = `你是音樂老師的助手。附上的圖片是一份樂譜
 
 格式規則：
 - 開頭幾行寫：標題: 歌名（看不到就省略）、調: 1=調名（例如 1=C、1=F、1=bB、1=G）、拍號: 3/4 之類、速度: 每分鐘四分音符拍數（沒寫就省略）。
+- 速度改變：突然變速時，在變速的那一小節前面換行，單獨寫一行「速度: 新速度」；在小節中間變速就在那個音前面寫 ♩=新速度。漸慢（rit.、rall.）或漸快（accel.）時，在開始的那一小節前面換行寫「漸慢: 目標速度」或「漸快: 目標速度」，目標速度看不到就估計（通常約慢 20%），並在接下來恢復速度（a tempo）的地方寫「速度: 原速度」。這些只寫在第一個聲部就好。
 - 轉調：在每個聲部轉調的那一小節前面換行，單獨寫一行「調: 1=新調」，後面的音符都用新調的簡譜數字。每個聲部都要在同一個位置寫。
 - 每個聲部用 [聲部名] 開頭。齊唱或只有一條旋律就寫 [齊唱]。合唱譜用譜上的名稱（例如 [女高音]、[女中音]、[第一部]、[第二部]）。同一行五線譜上有上下兩個聲部（符桿朝上、朝下）要拆成兩個聲部。
 - 鋼琴或樂器伴奏的音符不要逐音寫出來。改成在最後加一段 [伴奏]，寫出每一小節的和弦，例如：C | F C | G7 | C |。每個 | 是一小節，小節數要和旋律一樣（弱起小節也要佔一格，不彈就寫 N）。一小節有兩個和弦就用空白分開。和弦用英文字母寫（C、Dm、G7、F/A、Bb）。譜上有伴奏時依照伴奏判斷和弦；沒有伴奏、只有旋律時，請依旋律配上適合國小合唱的簡單和弦。

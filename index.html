@@ -731,6 +731,7 @@ textarea:focus{border-color:var(--gold)}
     <div class="btn-row"><button id="btn-jp-apply" class="btn primary small" type="button">套用簡譜</button><button id="btn-jp-help" class="btn ghost small" type="button">寫法說明</button><button id="btn-jp-regen" class="btn ghost small" type="button" hidden>↻ 從樂譜重新轉換</button></div>
     <div id="jp-help" class="jp-help" hidden>
       <code>調: 1=F</code><span>1 是哪個音。沒有記號的 1 在中央 C 到上面的 B 之間</span>
+      <code>調: 1=G（寫在聲部中間）</code><span>轉調：從下一行開始改用新的調。每個聲部都要在同一個地方寫</span>
       <code>拍號: 3/4　速度: 88</code><span>拍號與每分鐘幾拍</span>
       <code>[齊唱]　[第一部]</code><span>聲部名稱。齊唱只要一個聲部；合唱每部各寫一段</span>
       <code>1 2 3 0</code><span>音符與休止符，每個是一拍</span>
@@ -958,7 +959,7 @@ function parseMusicXML(text) {
         const nn = el.nodeName;
         if (nn === 'attributes') {
           const d = txt(el, 'divisions'); if (d) div = parseFloat(d) || 1;
-          const ky = ch(el, 'key'); if (ky && keyFifths == null && ch(ky, 'fifths')) keyFifths = parseInt(txt(ky, 'fifths'));
+          const ky = ch(el, 'key'); if (ky && ch(ky, 'fifths')) { const f = parseInt(txt(ky, 'fifths')); if (keyFifths == null) keyFifths = f; if (pi === 0 && !isNaN(f)) info.kf = f; }
           const t = ch(el, 'time');
           if (t) { beats = txt(t, 'beats').split('+').reduce((s, x) => s + (parseFloat(x) || 0), 0) || 4; bt = parseFloat(txt(t, 'beat-type')) || 4; }
         } else if (nn === 'backup') { pos -= (parseFloat(txt(el, 'duration')) || 0) / div; if (pos < 0) pos = 0; }
@@ -1147,11 +1148,13 @@ function mscxToMusicXML(text) {
   const nMeas = Math.max(...pinfo.map(p => p.staves[0].length));
   // measure lengths & time signatures from the first staff
   const ts = []; let cur = [4, 4];
-  const lens = [], meta = [];
+  const lens = [], meta = [], kss = [];
   for (let mi = 0; mi < nMeas; mi++) {
     const m = pinfo[0].staves[0][mi];
-    let tsHere = null;
+    let tsHere = null, kHere = null;
     if (m) for (const v of chs(m, 'voice')) { const t = ch(v, 'TimeSig'); if (t) { tsHere = [parseInt(txt(t, 'sigN')) || 4, parseInt(txt(t, 'sigD')) || 4]; break; } }
+    if (m && mi > 0) for (const v of chs(m, 'voice')) { const k = ch(v, 'KeySig'); if (k) { const kv = parseInt(txt(k, 'concertKey') || txt(k, 'accidental')); if (!isNaN(kv)) kHere = kv; break; } }
+    kss.push(kHere);
     if (tsHere) cur = tsHere;
     ts.push(tsHere);
     const nominal = Math.round(DIV * 4 * cur[0] / cur[1]);
@@ -1168,9 +1171,9 @@ function mscxToMusicXML(text) {
     for (let mi = 0; mi < nMeas; mi++) {
       const len = lens[mi];
       xml += `<measure number="${mi + 1}"${len !== meta[mi].nominal ? ' implicit="yes"' : ''}>`;
-      if (mi === 0 || ts[mi]) {
+      if (mi === 0 || ts[mi] || kss[mi] != null) {
         const t = ts[mi] || [4, 4];
-        xml += `<attributes>${mi === 0 ? `<divisions>${DIV}</divisions>` : ''}${mi === 0 && kf != null ? `<key><fifths>${kf}</fifths></key>` : ''}${mi === 0 && p.staves.length > 1 ? `<staves>${p.staves.length}</staves>` : ''}<time><beats>${t[0]}</beats><beat-type>${t[1]}</beat-type></time></attributes>`;
+        xml += `<attributes>${mi === 0 ? `<divisions>${DIV}</divisions>` : ''}${mi === 0 && kf != null ? `<key><fifths>${kf}</fifths></key>` : ''}${mi > 0 && kss[mi] != null ? `<key><fifths>${kss[mi]}</fifths></key>` : ''}${mi === 0 && p.staves.length > 1 ? `<staves>${p.staves.length}</staves>` : ''}${mi === 0 || ts[mi] ? `<time><beats>${t[0]}</beats><beat-type>${t[1]}</beat-type></time>` : ''}</attributes>`;
       }
       if (pi === 0 && meta[mi].startRep) xml += '<barline location="left"><repeat direction="forward"/></barline>';
       let emitted = 0;
@@ -1671,7 +1674,8 @@ function drawGame(cv, o) {
     gr.addColorStop(0, hexA('#ffffff', 0.5 * alpha)); gr.addColorStop(0.4, hexA(base.startsWith('#') ? base : '#ffffff', 0.85 * alpha)); gr.addColorStop(1, hexA(base.startsWith('#') ? base : '#ffffff', 0.45 * alpha));
     g.fillStyle = gr; roundRect(g, x0, yy, w, bh, bh / 2); g.fill();
     if (isAct) { g.strokeStyle = 'rgba(255,248,224,0.9)'; g.lineWidth = 2; g.stroke(); g.restore(); }
-    const lab = o.under === 'solfege' ? solName(n.midi) : o.under === 'lyrics' ? n.lyric : '';
+    let lab = o.under === 'lyrics' ? n.lyric : '';
+    if (o.under === 'solfege') { const keep = SOLX.tonic; if (o.tonicAt) SOLX.tonic = o.tonicAt(n.t0); lab = solName(n.midi); SOLX.tonic = keep; }
     if (lab) { g.fillStyle = alpha < 1 ? 'rgba(239,227,198,0.45)' : (o.under === 'solfege' ? COL.gold : COL.ink); g.textBaseline = 'top'; g.fillText(lab, x0 + 3, yy + bh + 4); }
   }
   for (const d of o.dust) {
@@ -1771,6 +1775,7 @@ class Session {
       await new Promise(res => { const tm = setTimeout(res, 4000); const done = () => { clearTimeout(tm); res(); }; el.addEventListener('loadedmetadata', done, { once: true }); el.addEventListener('error', done, { once: true }); el.load(); });
     }
     SOLX.tonic = this.solMode === 'movable' ? songTonic(this.song) : 0;
+    this.tonics = this.solMode === 'movable' ? songTonics(this.song) : null;
     let [k0, k1] = this.range;
     if (this.skipIntro) {
       const a = tl.measures[k0].t0, b = tl.measures[k1].t1;
@@ -1983,10 +1988,15 @@ class Session {
     const vel = dt > 0 ? (this.birdM - prevB) / dt : 0;
     this.birdTilt = (this.birdTilt || 0) * 0.85 + Math.max(-0.45, Math.min(0.45, -vel * 0.035)) * 0.15;
     if (!this.mic) while (this.dustI < this.dust.length && this.dust[this.dustI].t <= visT) { const d = this.dust[this.dustI++]; d.got = true; this.dustGot++; this.dustBurst(d); }
+    let tonicAt = null;
+    if (this.tonics) {
+      const ms = this.tl.measures, kAt = t => { let lo = 0, hi = ms.length - 1; while (lo < hi) { const md = (lo + hi + 1) >> 1; if (ms[md].t0 <= t + 1e-6) lo = md; else hi = md - 1; } return lo; };
+      tonicAt = t => this.tonics[kAt(t)] ?? 0; SOLX.tonic = tonicAt(visT);
+    }
     const geo = drawGame(cv, {
       sess: this, tl: this.tl, notes: this.notes, others: this.others, color: this.track.color, lo: this.view.lo, hi: this.view.hi,
       x: xf, tL: visT - playX / pps, tR: visT + (W - playX) / pps, playX, t: visT, pps, clock: now,
-      frames: this.frames, dust: this.dust, game: this.game, onKeys: this.onKeys, under: this.under || 'lyrics',
+      frames: this.frames, dust: this.dust, game: this.game, tonicAt, onKeys: this.onKeys, under: this.under || 'lyrics',
       bird: { m: this.birdM, phase: this.birdPhase, tilt: this.birdTilt, state: !this.mic ? 2 : (target != null && this.cur ? this.cur.ok : null), voiced: target != null, pet: { lv: this.petLv, chomp: this.chomp, idx: this.petIdx } },
       noteScore: n => (n.t1 < visT && n.lt > 2) ? n.lh / n.lt / 0.85 : null
     });
@@ -2536,6 +2546,7 @@ const JP_EXAMPLE = `標題: 小星星
 [伴奏]
 C | F C | F C | G C |`;
 const KEY_PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+const KEY_FIFTHS = t => { const i = [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5].indexOf(((t % 12) + 12) % 12); return i > 6 ? i - 12 : i; };
 const MAJ = [0, 2, 4, 5, 7, 9, 11];
 function parseKey(s) {
   s = s.replace(/^1\s*=\s*/, '').trim().replace('♯', '#').replace('♭', 'b');
@@ -2565,18 +2576,19 @@ function parseJianpu(text) {
     if ((m = /^\[(.+)\]$/.exec(line))) { cur = getPart(m[1].trim()); return; }
     if (cur && cur.isChord) { cur.chordLines.push(line.replace(/^(和弦|chords?)\s*[:：]\s*/i, '')); return; }
     if ((m = /^(標題|曲名|title)\s*[:：]\s*(.*)$/i.exec(line))) { meta.title = m[2].trim(); return; }
-    if ((m = /^(調|調號|key)\s*[:：]\s*(.*)$/i.exec(line))) { meta.tonic = parseKey(m[2]); return; }
+    if ((m = /^(轉調|調|調號|key)\s*[:：]\s*(.*)$/i.exec(line))) { const k = parseKey(m[2]); if (cur) cur.toks.push({ line: li + 1, key: k }); else meta.tonic = k; return; }
     if ((m = /^(拍號|拍子|time)\s*[:：]\s*(\d+)\s*\/\s*(\d+)/i.exec(line))) { meta.ts = [+m[2], +m[3]]; return; }
     if ((m = /^(速度|tempo)\s*[:：]\s*(\d+(\.\d+)?)/i.exec(line))) { meta.bpm = +m[2]; return; }
     if ((m = /^(詞|歌詞|lyrics?)\s*[:：]\s*(.*)$/i.exec(line))) { (cur || getPart('齊唱')).lyr.push(...splitLyrics(m[2])); cur = cur || getPart('齊唱'); return; }
     if (/[0-7]/.test(line)) { cur = cur || getPart('齊唱'); cur.toks.push({ line: li + 1, text: line }); return; }
     throw new Error(`第 ${li + 1} 行看不懂：「${line.slice(0, 30)}」`);
   });
-  if (!parts.some(p => p.toks.length)) throw new Error('沒有找到簡譜音符。音符要用 1–7 表示，休止符用 0。');
+  if (!parts.some(p => p.toks.some(x => x.text))) throw new Error('沒有找到簡譜音符。音符要用 1–7 表示，休止符用 0。');
   const re = /\|:|:\||\|\||\||-|([#b♯♭]?)([0-7])([',]*)([_\/]*)(\.?)|\S/g;
   for (const p of parts.filter(x => !x.isChord)) {
-    const ev = []; const bars = []; const repF = []; const repB = []; let pos = 0, tie = false;
-    for (const { line, text } of p.toks) {
+    const ev = []; const bars = []; const repF = []; const repB = []; const keys = []; let pos = 0, tie = false, tonic = meta.tonic;
+    for (const { line, text, key } of p.toks) {
+      if (key != null) { tonic = key; keys.push({ pos, tonic }); continue; }
       let m; re.lastIndex = 0;
       while ((m = re.exec(text))) {
         const t = m[0];
@@ -2591,7 +2603,7 @@ function parseJianpu(text) {
           if (deg > 0) {
             const acc = /[#♯]/.test(m[1]) ? 1 : /[b♭]/.test(m[1]) ? -1 : 0;
             const oct = (m[3].match(/'/g) || []).length - (m[3].match(/,/g) || []).length;
-            midi = meta.tonic + MAJ[deg - 1] + acc + 12 * oct;
+            midi = tonic + MAJ[deg - 1] + acc + 12 * oct;
           }
           const lv = ev[ev.length - 1];
           if (tie && lv && midi != null && lv.midi === midi) { lv.d += d; pos += d; tie = false; continue; }
@@ -2603,13 +2615,15 @@ function parseJianpu(text) {
       }
     }
     let li = 0; for (const e of ev) if (e.midi != null && li < p.lyr.length) e.lyric = p.lyr[li++];
-    p.ev = ev; p.bars = bars; p.repF = repF; p.repB = repB; p.len = pos; p.extraLyrics = Math.max(0, p.lyr.length - li);
+    p.ev = ev; p.bars = bars; p.repF = repF; p.repB = repB; p.keys = keys; p.len = pos; p.extraLyrics = Math.max(0, p.lyr.length - li);
   }
   return { meta, parts: parts.filter(p => !p.isChord && p.ev.length), notes, chords: parts.filter(p => p.isChord).map(p => p.chordLines.join(' ')).join(' ').trim() };
 }
 function scoreToJianpu(song) {
   const sc = getScore(song), tc = song.trackCfg || {};
-  const T = 60 + songTonic(song), KN = ['C', '#C', 'D', 'bE', 'E', 'F', '#F', 'G', 'bA', 'A', 'bB', 'B'];
+  const TS = songTonics(song), KN = ['C', '#C', 'D', 'bE', 'E', 'F', '#F', 'G', 'bA', 'A', 'bB', 'B'];
+  let T = 60 + (TS[0] ?? songTonic(song));
+  const kOf = q => { let k = 0; while (k + 1 < sc.seqQ.length && sc.seqQ[k + 1] <= q + 1e-6) k++; return k; };
   const role = t => (tc[t.key] && tc[t.key].role) || t.defRole;
   const sing = sc.tracks.filter(t => role(t) === 'sing');
   if (!sing.length) throw new Error('樂譜裡沒有要唱的聲部');
@@ -2626,7 +2640,7 @@ function scoreToJianpu(song) {
   if (sc.tracks.some(t => role(t) === 'acc')) out.push('// ※ 樂譜裡的鋼琴伴奏會保留下來；如果增加或刪除小節，伴奏可能會對不齊。');
   const head = out.length;
   if (song.title) out.push(`標題: ${song.title}`);
-  out.push(`調: 1=${KN[T % 12]}`, `拍號: ${ts[0]}/${ts[1]}`, `速度: ${Math.round(sc.tmap[0].bpm)}`);
+  out.push(`調: 1=${KN[(TS[0] ?? songTonic(song)) % 12]}`, `拍號: ${ts[0]}/${ts[1]}`, `速度: ${Math.round(sc.tmap[0].bpm)}`);
   const used = new Set();
   sing.forEach((t, ti) => {
     let label = ((tc[t.key] || {}).label || t.defLabel || `第${ti + 1}部`).replace(/[\[\]]/g, '').trim() || `第${ti + 1}部`;
@@ -2646,8 +2660,8 @@ function scoreToJianpu(song) {
     for (const n of ns.filter(n => n.e > n.q)) { if (n.q > cur + 1e-6) ev.push({ q: cur, e: n.q, midi: null }); ev.push(n); cur = n.e; }
     if (cur < totalQ - 1e-6) ev.push({ q: cur, e: totalQ, midi: null });
     // emit tokens; '|' when a bar line is reached
-    const toks = []; let pos = 0;
-    const barCheck = () => { if (isBar(pos)) toks.push({ bar: true }); };
+    const toks = []; let pos = 0; T = 60 + (TS[0] ?? 0);
+    const barCheck = () => { if (isBar(pos)) { toks.push({ bar: true }); const nt = 60 + (TS[kOf(pos)] ?? 0); if (nt !== T) { T = nt; toks.push({ key: T }); } } };
     const emitRest = (len) => { while (len > 1e-6) { const b = len >= 1 - 1e-6 ? 1 : len >= 0.75 - 1e-6 ? 0.75 : len >= 0.5 - 1e-6 ? 0.5 : 0.25; toks.push({ t: '0' + durMark(b) }); pos += b; len -= b; barCheck(); } };
     for (const e of ev) {
       if (e.midi == null) {
@@ -2672,12 +2686,13 @@ function scoreToJianpu(song) {
     out.push('', `[${label}]`);
     const hasLy = ns.some(n => n.lyric);
     const meas = [{ t: [], ly: [] }];
-    for (const tk of toks) { const m = meas[meas.length - 1]; if (tk.bar) { m.t.push('|'); meas.push({ t: [], ly: [] }); continue; } m.t.push(tk.t); if ('ly' in tk) m.ly.push(lyTok(tk.ly)); }
+    for (const tk of toks) { const m = meas[meas.length - 1]; if (tk.key != null) { m.key = tk.key; continue; } if (tk.bar) { m.t.push('|'); meas.push({ t: [], ly: [] }); continue; } m.t.push(tk.t); if ('ly' in tk) m.ly.push(lyTok(tk.ly)); }
     if (!meas[meas.length - 1].t.length) meas.pop();
     const lastM = meas[meas.length - 1]; if (lastM && lastM.t[lastM.t.length - 1] !== '|') lastM.t.push('|');
     const lines = [];
-    meas.forEach(m => { const L = lines[lines.length - 1]; const noteless = !m.t.some(x => /[0-7]/.test(x)); if (L && (L.n < 4 || noteless)) { L.t.push(...m.t); L.ly.push(...m.ly); L.n++; } else lines.push({ t: m.t.slice(), ly: m.ly.slice(), n: 1 }); });
-    lines.forEach(L => { out.push(L.t.join(' ')); if (hasLy && L.ly.length) out.push('詞: ' + L.ly.join(' ')); });
+    let carry = null;
+    meas.forEach(m => { const L = lines[lines.length - 1]; const noteless = !m.t.some(x => /[0-7]/.test(x)); if (carry != null && m.key == null && !noteless) { m.key = carry; carry = null; } if (m.key != null && noteless && L) { carry = m.key; m.key = null; } if (L && m.key == null && (L.n < 4 || noteless)) { L.t.push(...m.t); L.ly.push(...m.ly); L.n++; } else lines.push({ t: m.t.slice(), ly: m.ly.slice(), n: 1, key: m.key }); });
+    lines.forEach(L => { if (L.key != null) out.push(`調: 1=${KN[L.key % 12]}　// 轉調`); out.push(L.t.join(' ')); if (hasLy && L.ly.length) out.push('詞: ' + L.ly.join(' ')); });
   });
   if (!sc.tracks.some(t => role(t) === 'acc') && song.chords && song.chords.trim()) {
     const clean = song.chords.replace(/\r?\n/g, ' ').replace(/\|\||\|:|:\|/g, '|').trim().replace(/^\|/, '');
@@ -2726,6 +2741,7 @@ function jianpuToMusicXML(J, acc) {
         xml += `<attributes><divisions>${DIV}</divisions><key><fifths>${[0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5].indexOf(((meta.tonic % 12) + 12) % 12) > 6 ? [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5].indexOf(((meta.tonic % 12) + 12) % 12) - 12 : [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5].indexOf(((meta.tonic % 12) + 12) % 12)}</fifths></key><time><beats>${meta.ts[0]}</beats><beat-type>${meta.ts[1]}</beat-type></time></attributes>`;
         if (pi === 0) xml += `<direction><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>${meta.bpm}</per-minute></metronome></direction-type><sound tempo="${meta.bpm}"/></direction>`;
       }
+      if (mi > 0 && !p.acc) { const kc = (p0.keys || []).filter(x => Math.abs(x.pos - a) < 1e-6).pop(); if (kc) xml += `<attributes><key><fifths>${KEY_FIFTHS(kc.tonic)}</fifths></key></attributes>`; }
       if (pi === 0 && near(p0.repF, a)) xml += '<barline location="left"><repeat direction="forward"/></barline>';
       let filled = 0;
       if (p.acc) {
@@ -2765,6 +2781,7 @@ const OCR_PROMPT = `你是音樂老師的助手。附上的圖片是一份樂譜
 
 格式規則：
 - 開頭幾行寫：標題: 歌名（看不到就省略）、調: 1=調名（例如 1=C、1=F、1=bB、1=G）、拍號: 3/4 之類、速度: 每分鐘四分音符拍數（沒寫就省略）。
+- 轉調：在每個聲部轉調的那一小節前面換行，單獨寫一行「調: 1=新調」，後面的音符都用新調的簡譜數字。每個聲部都要在同一個位置寫。
 - 每個聲部用 [聲部名] 開頭。齊唱或只有一條旋律就寫 [齊唱]。合唱譜用譜上的名稱（例如 [女高音]、[女中音]、[第一部]、[第二部]）。同一行五線譜上有上下兩個聲部（符桿朝上、朝下）要拆成兩個聲部。
 - 鋼琴或樂器伴奏的音符不要逐音寫出來。改成在最後加一段 [伴奏]，寫出每一小節的和弦，例如：C | F C | G7 | C |。每個 | 是一小節，小節數要和旋律一樣（弱起小節也要佔一格，不彈就寫 N）。一小節有兩個和弦就用空白分開。和弦用英文字母寫（C、Dm、G7、F/A、Bb）。譜上有伴奏時依照伴奏判斷和弦；沒有伴奏、只有旋律時，請依旋律配上適合國小合唱的簡單和弦。
 - 音符用 1 到 7，休止符用 0。升降記號寫在數字前面：#4、b7。
@@ -4017,6 +4034,14 @@ function estimateTonic(sc) {
   return best.t;
 }
 function autoTonic(s) { const sc = getScore(s); return sc.keyFifths != null ? ((sc.keyFifths * 7) % 12 + 12) % 12 : estimateTonic(sc); }
+const fifthsPc = f => ((f * 7) % 12 + 12) % 12;
+function songTonics(s) {
+  const sc = getScore(s), base = songTonic(s);
+  const out = []; let kf = sc.keyFifths;
+  const first = kf != null ? fifthsPc(kf) : base;
+  sc.seq.forEach((mi, k) => { const f = sc.M[mi].kf; if (f != null && !isNaN(f)) kf = f; out.push(kf != null ? (base + fifthsPc(kf) - first + 24) % 12 : base); });
+  return out;
+}
 function songTonic(s) {
   if (s.doKey !== undefined && s.doKey !== null && s.doKey !== '') return ((+s.doKey % 12) + 12) % 12;
   try { return autoTonic(s); } catch (e) { return 0; }

@@ -728,7 +728,7 @@ textarea:focus{border-color:var(--gold)}
     <h3 class="step"><b>✎</b>簡譜文字</h3>
     <div id="ocr-status" class="notice" hidden></div>
     <textarea id="jp-text" spellcheck="false" autocomplete="off"></textarea>
-    <div class="btn-row"><button id="btn-jp-apply" class="btn primary small" type="button">套用簡譜</button><button id="btn-jp-help" class="btn ghost small" type="button">寫法說明</button></div>
+    <div class="btn-row"><button id="btn-jp-apply" class="btn primary small" type="button">套用簡譜</button><button id="btn-jp-help" class="btn ghost small" type="button">寫法說明</button><button id="btn-jp-regen" class="btn ghost small" type="button" hidden>↻ 從樂譜重新轉換</button></div>
     <div id="jp-help" class="jp-help" hidden>
       <code>調: 1=F</code><span>1 是哪個音。沒有記號的 1 在中央 C 到上面的 B 之間</span>
       <code>拍號: 3/4　速度: 88</code><span>拍號與每分鐘幾拍</span>
@@ -738,6 +738,7 @@ textarea:focus{border-color:var(--gold)}
       <code>1'　5,</code><span>高八度、低八度（可以疊：1''）</span>
       <code>1_　1__　1.　1_.</code><span>八分、十六分、附點四分、附點八分音符</span>
       <code>5 -　1 - - -</code><span>每個 - 多延長一拍；跨小節的連結線也用 -</span>
+      <code>5_ ~ | 5_</code><span>連結線：~ 後面的同一個音不重唱，接在前一個音後面（不是整拍時用）</span>
       <code>|　|:　:|</code><span>小節線、反覆開始、反覆結束（一二房請直接寫開）</span>
       <code>詞: 一閃一閃</code><span>歌詞，一個音一個字；一字多音用 _ 佔位</span>
       <code>// 註解</code><span>不會被當成音符</span>
@@ -2574,7 +2575,7 @@ function parseJianpu(text) {
   if (!parts.some(p => p.toks.length)) throw new Error('沒有找到簡譜音符。音符要用 1–7 表示，休止符用 0。');
   const re = /\|:|:\||\|\||\||-|([#b♯♭]?)([0-7])([',]*)([_\/]*)(\.?)|\S/g;
   for (const p of parts.filter(x => !x.isChord)) {
-    const ev = []; const bars = []; const repF = []; const repB = []; let pos = 0;
+    const ev = []; const bars = []; const repF = []; const repB = []; let pos = 0, tie = false;
     for (const { line, text } of p.toks) {
       let m; re.lastIndex = 0;
       while ((m = re.exec(text))) {
@@ -2592,9 +2593,12 @@ function parseJianpu(text) {
             const oct = (m[3].match(/'/g) || []).length - (m[3].match(/,/g) || []).length;
             midi = meta.tonic + MAJ[deg - 1] + acc + 12 * oct;
           }
-          ev.push({ midi, d, lyric: '' }); pos += d; continue;
+          const lv = ev[ev.length - 1];
+          if (tie && lv && midi != null && lv.midi === midi) { lv.d += d; pos += d; tie = false; continue; }
+          tie = false; ev.push({ midi, d, lyric: '' }); pos += d; continue;
         }
-        if (/[()~^\s]/.test(t)) continue;
+        if (t === '~') { tie = true; continue; }
+        if (/[()^\s]/.test(t)) continue;
         throw new Error(`第 ${line} 行有看不懂的符號「${t}」`);
       }
     }
@@ -2603,11 +2607,92 @@ function parseJianpu(text) {
   }
   return { meta, parts: parts.filter(p => !p.isChord && p.ev.length), notes, chords: parts.filter(p => p.isChord).map(p => p.chordLines.join(' ')).join(' ').trim() };
 }
-function jianpuToMusicXML(J) {
-  const { meta, parts } = J;
+function scoreToJianpu(song) {
+  const sc = getScore(song), tc = song.trackCfg || {};
+  const T = 60 + songTonic(song), KN = ['C', '#C', 'D', 'bE', 'E', 'F', '#F', 'G', 'bA', 'A', 'bB', 'B'];
+  const role = t => (tc[t.key] && tc[t.key].role) || t.defRole;
+  const sing = sc.tracks.filter(t => role(t) === 'sing');
+  if (!sing.length) throw new Error('樂譜裡沒有要唱的聲部');
+  const ts = (sc.M[sc.seq[0]] || {}).ts || [4, 4], totalQ = sc.totalQ;
+  const bars = sc.seq.map((mi, k) => sc.seqQ[k] + sc.M[mi].len).filter(b => b < totalQ - 1e-6);
+  const isBar = x => bars.some(b => Math.abs(b - x) < 1e-6);
+  const warn = new Set();
+  const DEG = ['1', '#1', '2', 'b3', '3', '4', '#4', '5', '#5', '6', 'b7', '7'];
+  const pitchTok = m => { const r = m - T, o = Math.floor(r / 12), w = r - 12 * o; return DEG[w] + (o > 0 ? "'".repeat(o) : ','.repeat(-o)); };
+  const durMark = b => b === 1 ? '' : b === 0.5 ? '_' : b === 0.25 ? '__' : b === 0.75 ? '_.' : b === 1.5 ? '.' : '';
+  const lyTok = l => { l = String(l || '').trim(); if (!l) return '_'; if (/^[\x00-\x7f]+$/.test(l)) return l.replace(/\s+/g, '-'); const cs = Array.from(l).filter(c => !/[\s，。、！？；：,.!?;:「」『』（）()…—\-_*]/.test(c)); if (!cs.length) return '_'; if (cs.length > 1) warn.add('有些音符的歌詞超過一個字，只保留第一個字'); return cs[0]; };
+  const q4 = x => Math.round(x * 4) / 4;
+  const out = ['// ※ 從匯入的樂譜自動轉成的簡譜。修改後按「套用簡譜」，就會用這份簡譜取代原本的樂譜。'];
+  if (sc.tracks.some(t => role(t) === 'acc')) out.push('// ※ 樂譜裡的鋼琴伴奏會保留下來；如果增加或刪除小節，伴奏可能會對不齊。');
+  const head = out.length;
+  if (song.title) out.push(`標題: ${song.title}`);
+  out.push(`調: 1=${KN[T % 12]}`, `拍號: ${ts[0]}/${ts[1]}`, `速度: ${Math.round(sc.tmap[0].bpm)}`);
+  const used = new Set();
+  sing.forEach((t, ti) => {
+    let label = ((tc[t.key] || {}).label || t.defLabel || `第${ti + 1}部`).replace(/[\[\]]/g, '').trim() || `第${ti + 1}部`;
+    if (/伴奏|鋼琴|和弦|piano|chord/i.test(label)) label = `第${ti + 1}部`;
+    while (used.has(label)) label += '＊'; used.add(label);
+    const ly = tc[t.key] && tc[t.key].lyrics ? splitLyrics(tc[t.key].lyrics) : null;
+    const ns = [];
+    t.notes.forEach((n, i) => {
+      let q = q4(n.q), e = q4(n.q + n.dq);
+      if (Math.abs(q - n.q) > 1e-3 || Math.abs(e - n.q - n.dq) > 1e-3) warn.add('有些音符（例如三連音）改成最接近的八分或十六分音符');
+      const pv = ns[ns.length - 1]; if (pv && pv.e > q) pv.e = q;
+      if (e <= q) return;
+      ns.push({ q, e, midi: n.midi, lyric: ly ? (ly[i] || '') : (n.lyric || '') });
+    });
+    // fill rests
+    const ev = []; let cur = 0;
+    for (const n of ns.filter(n => n.e > n.q)) { if (n.q > cur + 1e-6) ev.push({ q: cur, e: n.q, midi: null }); ev.push(n); cur = n.e; }
+    if (cur < totalQ - 1e-6) ev.push({ q: cur, e: totalQ, midi: null });
+    // emit tokens; '|' when a bar line is reached
+    const toks = []; let pos = 0;
+    const barCheck = () => { if (isBar(pos)) toks.push({ bar: true }); };
+    const emitRest = (len) => { while (len > 1e-6) { const b = len >= 1 - 1e-6 ? 1 : len >= 0.75 - 1e-6 ? 0.75 : len >= 0.5 - 1e-6 ? 0.5 : 0.25; toks.push({ t: '0' + durMark(b) }); pos += b; len -= b; barCheck(); } };
+    for (const e of ev) {
+      if (e.midi == null) {
+        let a = e.q; const cuts = bars.filter(b => b > a + 1e-6 && b < e.e - 1e-6);
+        for (const c of [...cuts, e.e]) { emitRest(c - a); a = c; }
+        continue;
+      }
+      const inner = bars.filter(b => b > e.q + 1e-6 && b < e.e - 1e-6), cuts = [e.q, ...inner, e.e];
+      for (let pi = 0; pi + 1 < cuts.length; pi++) {
+        const L = cuts[pi + 1] - cuts[pi], ip = Math.floor(L + 1e-6), fr = Math.round((L - ip) * 4) / 4;
+        if (pi === 0) {
+          const base = fr === 0.5 && L >= 1.5 ? 1.5 : fr > 0 ? fr : 1;
+          toks.push({ t: pitchTok(e.midi) + durMark(base), ly: e.lyric }); pos += base; barCheck();
+          for (let k = 0; k < Math.round(L - base); k++) { toks.push({ t: '-' }); pos += 1; barCheck(); }
+        } else {
+          for (let k = 0; k < ip; k++) { toks.push({ t: '-' }); pos += 1; barCheck(); }
+          if (fr > 0) { toks.push({ t: '~' }); toks.push({ t: pitchTok(e.midi) + durMark(fr) }); pos += fr; barCheck(); }
+        }
+      }
+    }
+    // lines of 4 measures, each followed by its lyrics
+    out.push('', `[${label}]`);
+    const hasLy = ns.some(n => n.lyric);
+    const meas = [{ t: [], ly: [] }];
+    for (const tk of toks) { const m = meas[meas.length - 1]; if (tk.bar) { m.t.push('|'); meas.push({ t: [], ly: [] }); continue; } m.t.push(tk.t); if ('ly' in tk) m.ly.push(lyTok(tk.ly)); }
+    if (!meas[meas.length - 1].t.length) meas.pop();
+    const lastM = meas[meas.length - 1]; if (lastM && lastM.t[lastM.t.length - 1] !== '|') lastM.t.push('|');
+    const lines = [];
+    meas.forEach(m => { const L = lines[lines.length - 1]; const noteless = !m.t.some(x => /[0-7]/.test(x)); if (L && (L.n < 4 || noteless)) { L.t.push(...m.t); L.ly.push(...m.ly); L.n++; } else lines.push({ t: m.t.slice(), ly: m.ly.slice(), n: 1 }); });
+    lines.forEach(L => { out.push(L.t.join(' ')); if (hasLy && L.ly.length) out.push('詞: ' + L.ly.join(' ')); });
+  });
+  if (!sc.tracks.some(t => role(t) === 'acc') && song.chords && song.chords.trim()) {
+    const clean = song.chords.replace(/\r?\n/g, ' ').replace(/\|\||\|:|:\|/g, '|').trim().replace(/^\|/, '');
+    const segs = clean.split('|').map(x => x.trim());
+    const un = sc.seq.map(mi => segs[mi] || '%');
+    out.push('', '[伴奏]'); for (let i = 0; i < un.length; i += 8) out.push(un.slice(i, i + 8).join(' | ') + ' |');
+  }
+  if (warn.size) out.splice(head, 0, ...[...warn].map(w => '// ※ ' + w));
+  return out.join('\n');
+}
+function jianpuToMusicXML(J, acc) {
+  const { meta } = J; const parts = [...J.parts, ...(acc || []).map(a => ({ name: a.name, acc: a }))];
   const tsl = meta.ts[0] * 4 / meta.ts[1];
-  const total = Math.max(...parts.map(p => p.len));
-  const p0 = parts[0];
+  const total = Math.max(...J.parts.map(p => p.len));
+  const p0 = J.parts[0];
   let bounds = [...new Set(p0.bars.filter(b => b > 1e-6 && b < total - 1e-6).map(b => Math.round(b * 1000) / 1000))].sort((a, b) => a - b);
   if (!bounds.length) { for (let q = tsl; q < total - 1e-6; q += tsl) bounds.push(q); }
   const edges = [0, ...bounds, total];
@@ -2622,8 +2707,18 @@ function jianpuToMusicXML(J) {
   xml += '</part-list>';
   parts.forEach((p, pi) => {
     xml += `<part id="P${pi + 1}">`;
-    const ev = []; let t = 0; for (const e of p.ev) { ev.push(Object.assign({ t0: t, t1: t + e.d }, e)); t += e.d; }
-    if (t < total - 1e-6) ev.push({ t0: t, t1: total, midi: null, lyric: '' });
+    const ev = []; let t = 0; if (!p.acc) { for (const e of p.ev) { ev.push(Object.assign({ t0: t, t1: t + e.d }, e)); t += e.d; } if (t < total - 1e-6) ev.push({ t0: t, t1: total, midi: null, lyric: '' }); }
+    let cev = [];
+    if (p.acc) {
+      const tk = x => Math.round(x * DIV), endT = tk(total);
+      for (const n of p.acc.raw.slice().sort((a, b) => a.q - b.q || b.midi - a.midi)) {
+        const q = tk(n.q), e = Math.min(endT, tk(n.q + n.dq)); if (e <= q || q >= endT) continue;
+        const last = cev[cev.length - 1];
+        if (last && last.q === q) { if (!last.ms.includes(n.midi)) last.ms.push(n.midi); last.e = Math.min(last.e, e); }
+        else { if (last && last.e > q) last.e = q; cev.push({ q, e, ms: [n.midi] }); }
+      }
+      cev = cev.filter(c => c.e > c.q);
+    }
     meas.forEach(([a, b], mi) => {
       const len = b - a;
       xml += `<measure number="${pickup ? mi : mi + 1}"${Math.abs(len - tsl) > 1e-6 ? ' implicit="yes"' : ''}>`;
@@ -2633,6 +2728,17 @@ function jianpuToMusicXML(J) {
       }
       if (pi === 0 && near(p0.repF, a)) xml += '<barline location="left"><repeat direction="forward"/></barline>';
       let filled = 0;
+      if (p.acc) {
+        const A = Math.round(a * DIV), B = Math.round(b * DIV); let cur = A;
+        for (const c of cev) {
+          if (c.e <= A || c.q >= B) continue;
+          const s0 = Math.max(A, c.q), s1 = Math.min(B, c.e);
+          if (s0 > cur) { xml += `<note><rest/><duration>${s0 - cur}</duration><voice>1</voice></note>`; }
+          c.ms.forEach((m, ci) => { const st = step(m); xml += `<note>${ci ? '<chord/>' : ''}<pitch><step>${st.s}</step>${st.a ? `<alter>${st.a}</alter>` : ''}<octave>${st.o}</octave></pitch><duration>${s1 - s0}</duration>${c.q < A ? '<tie type="stop"/>' : ''}${c.e > B ? '<tie type="start"/>' : ''}<voice>1</voice></note>`; });
+          cur = s1;
+        }
+        filled = cur - A;
+      }
       for (const e of ev) {
         if (e.t1 <= a + 1e-6 || e.t0 >= b - 1e-6) continue;
         const s0 = Math.max(a, e.t0), s1 = Math.min(b, e.t1);
@@ -2765,11 +2871,21 @@ function applyJianpu(quiet) {
   if (!text) { msg.className = 'err-msg'; msg.textContent = '請先輸入簡譜。'; return false; }
   try {
     const J = parseJianpu(text);
-    const xml = jianpuToMusicXML(J);
+    let acc = null;
+    if (!J.chords && ED.song.xml) {
+      try {
+        const old = getScore(ED.song), tc = ED.song.trackCfg || {};
+        const accG = new Set(old.tracks.filter(t => ((tc[t.key] || {}).role || t.defRole) === 'acc').map(t => t.gkey));
+        acc = old.groups.filter(G => accG.has(G.gkey) && G.raw.length).map((G, i, arr) => ({ name: arr.length > 1 ? `鋼琴 ${i + 1}` : '鋼琴', raw: G.raw }));
+        if (!acc.length) acc = null;
+      } catch (e) { acc = null; }
+    }
+    const xml = jianpuToMusicXML(J, acc);
     parseMusicXML(xml);
     ED.song.xml = xml; ED.song.jianpu = text; ED.song._score = null; ED.song.trackCfg = {};
     let chordNote = '';
     if (J.chords) { try { parseChords(J.chords); ED.song.chords = J.chords; chordNote = '已加入簡譜裡 [伴奏] 的和弦。'; } catch (e) { chordNote = '[伴奏] 的和弦有問題：' + e.message; } }
+    else if (acc) { ED.song.chords = ''; chordNote = '已保留原本樂譜裡的鋼琴伴奏（如果增加或刪除了小節，伴奏可能會對不齊）。'; }
     else if (!ED.song.audio) { ED.song.chords = autoChords(parseMusicXML(xml)); chordNote = '已依旋律自動配上鋼琴伴奏，可以在「鋼琴伴奏」修改。'; }
     $('#ed-chords').value = ED.song.chords || '';
     $('#ed-ts').value = J.meta.ts.join('/'); $('#ed-ts-wrap').hidden = false;
@@ -2779,7 +2895,7 @@ function applyJianpu(quiet) {
     J.parts.forEach(p => { if (p.extraLyrics) extra.push(`${p.name}的歌詞比音符多 ${p.extraLyrics} 個字`); });
     const lens = J.parts.map(p => p.len); if (Math.max(...lens) - Math.min(...lens) > 1e-6) extra.push('各聲部的總拍數不一樣，較短的聲部後面會補休止符');
     if (chordNote) extra.push(chordNote);
-    if (J.notes.length) extra.unshift('辨識註記：' + J.notes.join('；'));
+    { const nt = J.notes.filter(n => !n.startsWith('※')); if (nt.length) extra.unshift('辨識註記：' + nt.join('；')); }
     msg.className = extra.length ? 'hint' : 'ok-msg';
     msg.textContent = (quiet ? '' : '已套用簡譜。') + extra.join('。');
     edError(''); refreshEditor();
@@ -3138,7 +3254,7 @@ $('#ed-score').addEventListener('change', async e => {
   edError('');
   try {
     const text = await readScoreFile(f); parseMusicXML(text);
-    ED.song.xml = text; ED.song._score = null; ED.song.trackCfg = {}; ED.song.jianpu = ''; $('#jp-panel').hidden = true; $('#ed-ts-wrap').hidden = true;
+    ED.song.xml = text; ED.song._score = null; ED.song.trackCfg = {}; ED.song.jianpu = ''; $('#jp-text').value = ''; $('#jp-msg').textContent = ''; $('#jp-panel').hidden = true; $('#ed-ts-wrap').hidden = true;
     { const sc = getScore(ED.song); ED.song.chords = (!ED.song.audio && !sc.tracks.some(t => t.defRole === 'acc')) ? autoChords(sc) : ''; $('#ed-chords').value = ED.song.chords; $('#chords-msg').textContent = ED.song.chords ? '樂譜裡沒有鋼琴聲部，已依旋律自動配上和弦。' : ''; }
     $('#ed-score-name').textContent = f.name;
     if (!ED.song.title) { ED.song.title = f.name.replace(/\.(musicxml|xml|mxl|mscz|mscx)$/i, '').replace(/[(（](原版|原檔)[)）]$/, ''); $('#ed-name').value = ED.song.title; }
@@ -3225,7 +3341,15 @@ $('#btn-ed-save').addEventListener('click', async () => {
 $('#btn-new').addEventListener('click', () => openEditor(null));
 
 
-$('#btn-jp-open').addEventListener('click', () => { if (!$('#jp-text').value.trim()) $('#jp-text').value = JP_EXAMPLE; showJP(true); $('#jp-text').focus(); });
+function jpFromScore(force) {
+  const ta = $('#jp-text'), msg = $('#jp-msg');
+  if (!ED.song.xml) return false;
+  if (!force && ta.value.trim() && ta.value.trim() !== JP_EXAMPLE.trim()) return false;
+  try { ta.value = scoreToJianpu(ED.song); msg.className = 'hint'; msg.textContent = '已把樂譜的每個聲部轉成簡譜。修改後按「套用簡譜」就會更新樂譜；不修改的話，原本的樂譜不會變。'; return true; }
+  catch (e) { msg.className = 'err-msg'; msg.textContent = '樂譜轉簡譜失敗：' + e.message; return false; }
+}
+$('#btn-jp-open').addEventListener('click', () => { if (!jpFromScore(false) && !$('#jp-text').value.trim()) $('#jp-text').value = JP_EXAMPLE; $('#btn-jp-regen').hidden = !ED.song.xml; showJP(true); $('#jp-text').focus(); });
+$('#btn-jp-regen').addEventListener('click', e => armButton(e.currentTarget, '確定？會蓋掉目前的簡譜文字', () => jpFromScore(true)));
 $('#btn-jp-apply').addEventListener('click', () => applyJianpu(false));
 $('#btn-jp-help').addEventListener('click', () => { $('#jp-help').hidden = !$('#jp-help').hidden; });
 $('#ed-photo').addEventListener('change', e => { const files = Array.from(e.target.files || []); e.target.value = ''; if (files.length) runOCR(files); });

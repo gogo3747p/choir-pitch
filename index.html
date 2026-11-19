@@ -844,6 +844,8 @@ const NAT = [1,0,1,0,1,1,0,1,0,1,0,1];
 const PART_COLORS = ['#ff6f91','#4fe3b0','#6cb6ff','#c59bff','#ffc65c','#ff9d5c'];
 const COL = { bg0:'#171236', bg1:'#0e0b22', grid:'rgba(255,255,255,0.05)', gridC:'rgba(226,189,98,0.28)', ink:'#efe3c6', muted:'#b2a8cf', gold:'#f6dc94', glow:'#9d86ff', good:'#7cf0c0', ok:'#ffd36b', bad:'#ff7486', gutter:'#110d2a' };
 const STRICT = { easy:{a:40,b:75,c:120}, standard:{a:30,b:60,c:100}, strict:{a:20,b:40,c:70} };
+// class mode (whole class singing in unison into one mic): every tolerance widened so group singing isn't punished
+const classTh = th => ({ a: th.a + 20, b: th.b + 35, c: th.c + 50 });
 const STAGE_NAMES = ['月光迴廊','魔藥地窖','星象觀測塔','水晶湖畔','古老書庫','鐘樓頂端','雲上天橋','鏡之長廊','飛龍山谷','螢光森林','風暴城牆','秘密溫室','黎明尖塔','銀河階梯','極光峽谷','時光沙漏'];
 const pc = m => ((Math.round(m) % 12) + 12) % 12;
 const SOLX = { tonic: 0 };
@@ -1796,6 +1798,7 @@ class Session {
     if (this.mic) this.updDust();
     this.view = viewRange(this.notes);
     this.th = STRICT[rule('strict', this.song)] || STRICT.standard; this.octave = !!rule('octave', this.song);
+    if (typeof isClass === 'function' && isClass()) { this.th = classTh(this.th); this.octave = true; this.classMode = true; }
     const m0 = tl.measures[k0];
     const ts = m0.ts;
     let beatSec = 60 / tl.bpmAt(m0.q0) * (4 / ts[1]);
@@ -2420,7 +2423,7 @@ $('#vol-guide').addEventListener('input', e => { if (S.session && S.session.guid
 function endPractice(sess, cutoff, early) {
   try { if (wakeLock) wakeLock.release(); } catch (e) {} wakeLock = null;
   RULES_SONG = sess.song;
-  const res = scoreRun(sess.notes, sess.frames, sess.th, !!rule('octave', sess.song), cutoff);
+  const res = scoreRun(sess.notes, sess.frames, sess.th, !!sess.octave, cutoff);
   if (!res) { renderMap(); show('map'); return; }
   res.early = early && cutoff < sess.E;
   res.maxCombo = sess.maxCombo;
@@ -4128,7 +4131,8 @@ function readRulesEditor() {
 }
 function rulesSummary(sg) {
   if (!sg) return '';
-  return `這首歌的試煉規則：音準${ruleLabel('strict', rule('strict', sg))}・過關要 ${rule('passStars', sg) || 6} 顆星・八度${ruleLabel('octave', rule('octave', sg))}・關卡${rule('unlockAll', sg) ? '全部開放' : '依序解鎖'}`;
+  const cls = typeof isClass === 'function' && isClass();
+  return `這首歌的試煉規則：音準${ruleLabel('strict', rule('strict', sg))}${cls ? '（班級模式再放寬）' : ''}・過關要 ${rule('passStars', sg) || 6} 顆星・八度${cls ? '也算對' : ruleLabel('octave', rule('octave', sg))}・關卡${rule('unlockAll', sg) ? '全部開放' : '依序解鎖'}`;
 }
 
 /* ================= boot ================= */

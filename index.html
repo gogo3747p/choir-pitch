@@ -392,6 +392,7 @@ textarea:focus{border-color:var(--gold)}
 .sync-qr svg{width:220px;height:220px;border-radius:8px;flex:none}
 .sync-qr textarea{width:100%;min-height:70px;font-size:12px}
 .sync-warn{color:var(--ok)}
+.sound-fix{position:absolute;left:50%;top:54px;transform:translateX(-50%);z-index:6;border:2px solid var(--gold-hi);background:rgba(12,10,28,.92);color:var(--gold-hi);border-radius:99px;padding:10px 20px;font-size:18px;font-weight:900;box-shadow:0 0 24px rgba(246,220,148,.5)}
 .pet-pick{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}.pet-pick button{display:flex;flex-direction:column;align-items:center;gap:0;background:rgba(0,0,0,.28);border:1px solid var(--rim);border-radius:10px;padding:4px 6px;color:var(--muted);font-size:12px;line-height:1.25;min-width:72px}.pet-pick button[aria-pressed="true"]{border-color:var(--gold);background:rgba(226,189,98,.18);color:var(--gold-hi)}.pet-pick button:disabled{opacity:.45}.pet-pick canvas{width:60px;height:46px}
 .lv-table{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;margin-top:8px}
 .lv-table span{background:rgba(0,0,0,.25);border-radius:8px;padding:4px 10px}
@@ -573,6 +574,7 @@ textarea:focus{border-color:var(--gold)}
     <div class="dust-chip"><span id="dust-lbl">✦ 星塵</span><b id="dust-count">0 / 0</b></div>
     <div id="combo" class="combo" hidden></div>
     <div id="countdown" class="countdown" hidden></div>
+    <button id="sound-fix" class="sound-fix" type="button" hidden>🔇 沒有聲音？點這裡恢復聲音</button>
     <div id="now-note" class="now-note" hidden></div>
   </div>
   <div class="play-bottom">
@@ -1311,11 +1313,17 @@ const AE = {
       const comp = this.ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
       this.master.connect(comp); comp.connect(this.ctx.destination);
     }
-    if (this.ctx.state === 'suspended') this.ctx.resume();
+    if (this.ctx.state !== 'running') { try { this.ctx.resume().catch(() => {}); } catch (e) {} }
+    if (!this.ctx._watch) { this.ctx._watch = true; this.ctx.addEventListener('statechange', () => { soundFixUI(); if (this.ctx.state !== 'running' && this.ctx.state !== 'closed') { try { this.ctx.resume().catch(() => {}); } catch (e) {} } }); }
     return this.ctx;
   },
   outLat() { const c = this.ctx; return Math.min(0.4, (c.outputLatency || 0) + (c.baseLatency || 0)); }
 };
+function soundFixUI() {
+  const b = document.getElementById('sound-fix'); if (!b || !AE.ctx) return;
+  const pl = document.getElementById('scr-play');
+  b.hidden = AE.ctx.state === 'running' || !pl || pl.hidden;
+}
 function mtof(m) { return 440 * Math.pow(2, (m - 69) / 12); }
 function guideTone(dest, when, dur, midi) {
   const c = AE.ctx, f = mtof(midi), g = c.createGain();
@@ -1376,6 +1384,7 @@ const Mic = {
     if (this.stream && this.stream.active) return;
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw Object.assign(new Error('nomedia'), { name: 'NoMedia' });
     this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: false } });
+    try { await AE.ctx.resume(); } catch (e) {}
     const src = AE.ctx.createMediaStreamSource(this.stream);
     this.an = AE.ctx.createAnalyser(); this.an.fftSize = 2048;
     const sink = AE.ctx.createGain(); sink.gain.value = 0;
@@ -1856,6 +1865,12 @@ class Session {
     }
     ev.sort((a, b) => a.t - b.t);
     this.ev = ev; this.ei = 0;
+    // notes the app itself is sounding (piano / chords / other parts): if the mic hears one of these and it is not the student's note, it is ignored
+    const bg = [];
+    for (const n of tl.accNotes) if (n.t1 >= Sx - 0.5 && n.t0 < E) bg.push({ t0: n.t0, t1: n.t0 + Math.min(Math.max(n.t1 - n.t0, 0.2) + 0.35, 2.6), midi: n.midi });
+    onParts.forEach(o => { for (const n of o.notes) if (n.t1 >= Sx - 0.5 && n.t0 < E) bg.push({ t0: n.t0, t1: n.t1 + 0.12, midi: n.midi }); });
+    if (first) bg.push({ t0: Sx - countDur - 1.35, t1: Sx - countDur - 0.1, midi: first.midi });
+    bg.sort((a, b) => a.t0 - b.t0); this.bg = bg; this.bgI = 0; this.bgFrames = 0; this.voicedFrames = 0;
     this.outLat = AE.outLat();
     this.ctxStart = ctx.currentTime + 0.2;
     this.offset = offset; this.R = R;
@@ -1927,6 +1942,7 @@ class Session {
       if (this.countEl !== false && cd != null) { el.hidden = false; el.innerHTML = `<span>${this.mode === 'easy' ? '跟著導唱精靈唱，讓小鳥飛到發光的音符上' : '記住起音，用歌聲讓小鳥飛到音符上'}</span><b>${cd}</b>`; }
       else el.hidden = true;
     }
+    if (AE.ctx.state !== 'running' && now - (this._sf || 0) > 0.5) { this._sf = now; soundFixUI(); }
     if (this.mic && now - this.lastDet >= 0.016) {
       this.lastDet = now;
       const r = Mic.read();
@@ -1935,6 +1951,20 @@ class Session {
       if (m != null) { const v = this.hist.filter(x => x != null).sort((a, b) => a - b); if (v.length >= 2) m = v[Math.floor(v.length / 2)]; }
       const ft = visT - 0.04;
       const tgt = this.noteAt(ft - 0.12);
+      let bgHit = false;
+      if (m != null) {
+        this.voicedFrames++;
+        const near = tgt && (() => { let df = m - tgt.midi; if (this.octave) df -= 12 * Math.round(df / 12); return Math.abs(df * 100) <= this.th.b; })();
+        if (!near && this.bg) {
+          while (this.bgI < this.bg.length && this.bg[this.bgI].t1 < ft - 3) this.bgI++;
+          for (let j = this.bgI; j < this.bg.length && this.bg[j].t0 <= ft + 0.02; j++) {
+            const n = this.bg[j]; if (n.t1 < ft) continue;
+            const dp = ((m - n.midi) % 12 + 18) % 12 - 6;
+            if (Math.abs(dp) < 0.6) { bgHit = true; break; }
+          }
+        }
+        if (bgHit) { this.bgFrames++; m = null; }
+      }
       let d = m, ok = null;
       if (m != null) {
         const ref = tgt ? tgt.midi : this.lastRef;
@@ -1942,9 +1972,9 @@ class Session {
         if (tgt) { const s = frameScore((d - tgt.midi) * 100, this.th); ok = s >= 1 ? 2 : s > 0.25 ? 1 : 0; }
       }
       const tt = ft - 0.12;
-      if (tgt && tt >= tgt.wa && tt <= tgt.wb) { tgt.lt++; if (m != null) tgt.lh += frameScore((d - tgt.midi) * 100, this.th); }
+      if (tgt && tt >= tgt.wa && tt <= tgt.wb && !bgHit) { tgt.lt++; if (m != null) tgt.lh += frameScore((d - tgt.midi) * 100, this.th); }
       if (tgt) this.lastRef = tgt.midi;
-      this.frames.push({ t: ft, midi: m, d, ok });
+      this.frames.push(bgHit ? { t: ft, midi: null, d: null, ok: null, bg: true } : { t: ft, midi: m, d, ok });
       for (let j = this.dustI; j < this.dust.length; j++) {
         const du = this.dust[j]; if (du.t > ft + 0.05) break;
         if (du.got || du.miss || m == null) continue;
@@ -2055,6 +2085,7 @@ function scoreRun(notes, frames, th, fold, cutoff) {
       while (fi < frames.length && frames[fi].t - sh < a) fi++;
       let tot = 0, voiced = 0, sum = 0; const cents = [];
       for (let j = fi; j < frames.length && frames[j].t - sh <= b; j++) {
+        if (frames[j].bg) continue;
         tot++; const m = frames[j].midi; if (m == null) continue; voiced++;
         let df = m - n.midi; if (fold) df -= 12 * Math.round(df / 12);
         const c = df * 100; cents.push(c); sum += frameScore(c, th);
@@ -2415,6 +2446,7 @@ async function startPractice() {
   try { await sess.start(); }
   catch (e) { renderMap(); show('map'); err.hidden = false; err.textContent = '無法播放：' + e.message; }
 }
+$('#sound-fix').addEventListener('click', () => { try { AE.ctx.resume().then(soundFixUI); } catch (e) {} });
 $('#btn-stop').addEventListener('click', () => { if (S.session && !S.session.dead) S.session.finish(true); });
 $('#vol-others').addEventListener('input', e => { prac.ovol = +e.target.value; LS.set('cpc-practice', prac); if (S.session && S.session.othersG) S.session.othersG.gain.value = prac.ovol; });
 $('#vol-acc').addEventListener('input', e => { if (S.session && S.session.accG) S.session.accG.gain.value = +e.target.value; });
@@ -2484,7 +2516,9 @@ function renderResult(sess, res, prevBest, unlocked) {
     : td < -20 ? '咒語常常偏低一點。用氣息撐住，把音「想高一點」。'
     : '音高沒有明顯偏高或偏低，很平衡！';
   const cov = $('#res-cover');
-  cov.hidden = !(res.coverage < 0.55); cov.textContent = '有些地方沒有聽到你的聲音，要唱大聲一點，或靠近麥克風喔。';
+  const bgShare = sess.voicedFrames ? sess.bgFrames / sess.voicedFrames : 0;
+  cov.hidden = !(res.coverage < 0.55 || bgShare > 0.3);
+  cov.textContent = bgShare > 0.3 ? '麥克風收到不少伴奏的聲音（這些聲音不會扣分）。戴耳機、或把伴奏音量調小一點，分數會更準喔。' : '有些地方沒有聽到你的聲音，要唱大聲一點，或靠近麥克風喔。';
   let g = 0, o = 0, b = 0;
   for (const n of res.notes) { if (n.sc == null) continue; if (n.sc >= 0.75) g++; else if (n.sc >= 0.4) o++; else b++; }
   $('#st-g').textContent = g; $('#st-o').textContent = o; $('#st-b').textContent = b; $('#st-c').textContent = res.maxCombo || 0;

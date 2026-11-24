@@ -525,11 +525,13 @@ textarea:focus{border-color:var(--gold)}
       <div class="field fit"><span>節拍器</span><div class="seg" id="seg-metro"><button type="button" data-v="1">開</button><button type="button" data-v="0">關</button></div></div>
       <div class="field fit"><span>音符下方</span><div class="seg" id="seg-under"><button type="button" data-v="lyrics">歌詞</button><button type="button" data-v="solfege">唱名</button><button type="button" data-v="none">隱藏</button></div></div>
       <div class="field fit"><span>唱名方式</span><div class="seg" id="seg-sol"><button type="button" data-v="fixed">固定唱名</button><button type="button" data-v="movable">首調唱名</button></div></div>
+      <div class="field fit"><span>投影到電視</span><div class="seg" id="seg-tv"><button type="button" data-v="1">開</button><button type="button" data-v="0">關</button></div></div>
       <div class="field fit"><span>跳過前奏</span><div class="seg" id="seg-skip"><button type="button" data-v="1">開</button><button type="button" data-v="0">關</button></div></div>
       <div class="field fit"><span>每小節幾拍</span><div class="seg" id="seg-beats"><button type="button" data-v="0" id="beats-auto">照樂譜</button><button type="button" data-v="2">2 拍</button><button type="button" data-v="3">3 拍</button><button type="button" data-v="4">4 拍</button></div></div>
     </div>
     <p class="hint">速度變慢時，伴奏音檔也會一起變慢，但音高不變。「每小節幾拍」會改變預備拍和節拍器的重音。「跳過前奏」會從你的聲部開始唱的那一小節開始（只跳過開頭沒有你要唱的音的小節）。</p>
     <p id="sol-hint" class="hint"></p>
+    <p id="tv-hint" class="hint" hidden>投影到電視：iPad 開麥克風時，聲音常常會被系統切回 iPad 自己的喇叭。打開這個選項後，聲音會留在電視播放，伴奏被麥克風收進去的部分也不會扣分。</p>
     <div id="prac-parts" class="parts-box" hidden>
       <div class="field"><span>其他聲部陪唱（預設全部開啟，用比導唱小一點的音量一起唱；點聲部可以關掉）</span>
         <div id="part-toggles" class="toggles"></div></div>
@@ -1381,9 +1383,12 @@ const Mic = {
   stream: null, an: null, buf: null, nsdf: null, sq: null,
   async start() {
     AE.init();
-    if (this.stream && this.stream.active) return;
+    const ec = !(typeof prac !== 'undefined' && prac.tv);
+    if (this.stream && this.stream.active && this.ec === ec) return;
+    if (this.stream) { try { this.stream.getTracks().forEach(t => t.stop()); } catch (e) {} this.stream = null; }
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw Object.assign(new Error('nomedia'), { name: 'NoMedia' });
-    this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: false } });
+    // echo cancellation makes iPad send sound to its own speaker while the mic is on; projector mode turns it off so sound stays on the TV
+    this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: ec, noiseSuppression: false, autoGainControl: false } }); this.ec = ec;
     try { await AE.ctx.resume(); } catch (e) {}
     const src = AE.ctx.createMediaStreamSource(this.stream);
     this.an = AE.ctx.createAnalyser(); this.an.fftSize = 2048;
@@ -3579,6 +3584,7 @@ function renderPrac() {
   $$('#seg-under button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === prac.under)));
   $$('#seg-sol button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === prac.solMode)));
   $$('#seg-game button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === prac.game)));
+  $$('#seg-tv button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.v === (prac.tv ? 1 : 0)))); $('#tv-hint').hidden = !prac.tv;
   if (S.song) { const t = songTonic(S.song); $('#sol-hint').textContent = prac.solMode === 'movable' ? `首調唱名：這首歌是 ${KEYN[t]} 大調（或 ${KEYN[(t + 9) % 12]} 小調），${KEYN[t]} 唱 Do。左邊的音高刻度和音符下方都會換成首調唱名。` : '固定唱名：C 唱 Do、D 唱 Re，不管歌曲是什麼調。'; }
   $$('#seg-skip button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.v === (prac.skipIntro ? 1 : 0))));
   if (S.tl) { const m = S.tl.measures[Math.min(1, S.tl.measures.length - 1)]; $('#beats-auto').textContent = `照樂譜（${m.ts[0]}/${m.ts[1]}）`; }
@@ -3627,6 +3633,7 @@ $$('#seg-metro button').forEach(b => b.addEventListener('click', () => { prac.me
 $$('#seg-under button').forEach(b => b.addEventListener('click', () => { prac.under = b.dataset.v; LS.set('cpc-practice', prac); renderPrac(); }));
 $$('#seg-sol button').forEach(b => b.addEventListener('click', () => { prac.solMode = b.dataset.v; LS.set('cpc-practice', prac); renderPrac(); }));
 $$('#seg-game button').forEach(b => b.addEventListener('click', () => { prac.game = b.dataset.v; LS.set('cpc-practice', prac); renderPrac(); }));
+$$('#seg-tv button').forEach(b => b.addEventListener('click', () => { prac.tv = b.dataset.v === '1'; LS.set('cpc-practice', prac); renderPrac(); }));
 function setLyricBtn() { $('#btn-lyrics').textContent = { lyrics: '下方：歌詞', solfege: '下方：唱名', none: '下方：不顯示' }[prac.under] || '下方：歌詞'; }
 $('#btn-lyrics').addEventListener('click', () => { const order = ['lyrics', 'solfege', 'none']; prac.under = order[(order.indexOf(prac.under) + 1) % 3]; LS.set('cpc-practice', prac); if (S.session) S.session.under = prac.under; setLyricBtn(); });
 $$('#seg-skip button').forEach(b => b.addEventListener('click', () => { prac.skipIntro = b.dataset.v === '1'; LS.set('cpc-practice', prac); renderPrac(); }));

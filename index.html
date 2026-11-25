@@ -407,6 +407,25 @@ textarea:focus{border-color:var(--gold)}
 .bb-grid b{display:block;font-family:var(--f-rune);font-size:22px}
 .bb-grid span{font-size:13px;color:var(--muted)}
 @media (max-width:480px){.bb-grid{grid-template-columns:repeat(2,1fr)}}
+.grp-box{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+.grp-teams{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:8px}
+.grp-team{display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.25);border:1px solid var(--rim);border-left:6px solid var(--tc);border-radius:10px;padding:6px 10px}
+.grp-team input{flex:1;min-width:0;padding:4px 8px}
+.grp-team select{width:136px;flex:none;padding:4px}
+.grp-stage{min-height:70vh;display:flex;align-items:center;justify-content:center;padding:16px}
+.grp-card{width:min(760px,100%);background:var(--panel);border:1px solid rgba(226,189,98,.55);border-radius:22px;padding:24px;display:flex;flex-direction:column;gap:14px;text-align:center;box-shadow:0 0 50px rgba(157,134,255,.3)}
+.grp-card h2{margin:0;font-size:30px;color:var(--gold-hi)}
+.grp-turn{font-size:44px;font-weight:900;font-family:var(--f-head)}
+.grp-board{display:flex;flex-direction:column;gap:6px;text-align:left}
+.grp-row{display:flex;align-items:center;gap:10px;background:rgba(0,0,0,.25);border:1px solid var(--rim);border-left:8px solid var(--tc);border-radius:12px;padding:8px 12px;font-size:18px}
+.grp-row.now{border-color:var(--gold);box-shadow:0 0 16px rgba(246,220,148,.35)}
+.grp-row b{flex:1}
+.grp-row .medal{font-size:26px;width:34px;text-align:center}
+.grp-row .st{color:var(--gold-hi);font-family:var(--f-rune);font-size:20px;white-space:nowrap}
+.grp-podium{display:flex;justify-content:center;align-items:flex-end;gap:12px;min-height:170px}
+.grp-pod{width:150px;border-radius:14px 14px 0 0;background:linear-gradient(180deg,var(--tc),rgba(0,0,0,.35));display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:8px 6px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.6);font-weight:900}
+.grp-pod .m{font-size:38px}
+.grp-ct{background:rgba(124,240,192,.1);border:1px solid rgba(124,240,192,.5);border-radius:12px;padding:10px 14px;text-align:left}
 .pet-pick{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}.pet-pick button{display:flex;flex-direction:column;align-items:center;gap:0;background:rgba(0,0,0,.28);border:1px solid var(--rim);border-radius:10px;padding:4px 6px;color:var(--muted);font-size:12px;line-height:1.25;min-width:72px}.pet-pick button[aria-pressed="true"]{border-color:var(--gold);background:rgba(226,189,98,.18);color:var(--gold-hi)}.pet-pick button:disabled{opacity:.45}.pet-pick canvas{width:60px;height:46px}
 .lv-table{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;margin-top:8px}
 .lv-table span{background:rgba(0,0,0,.25);border-radius:8px;padding:4px 10px}
@@ -572,6 +591,16 @@ textarea:focus{border-color:var(--gold)}
   <div id="map-msg" class="notice" hidden></div>
   <p id="rules-hint" class="hint" style="text-align:center"></p>
   <div id="tower" class="tower"></div>
+  <details class="panel" id="grp-panel">
+    <summary>👥 分組比賽：輪流演唱、比分數</summary>
+    <div class="grp-box">
+      <label class="check"><input type="checkbox" id="grp-on"><span>開啟分組比賽（點一個關卡後，各組輪流唱同一段，最後比星星）</span></label>
+      <div class="field fit"><span>組數</span><div class="seg" id="grp-count"><button type="button" data-v="2">2 組</button><button type="button" data-v="3">3 組</button><button type="button" data-v="4">4 組</button><button type="button" data-v="5">5 組</button><button type="button" data-v="6">6 組</button></div></div>
+      <div id="grp-teams" class="grp-teams"></div>
+      <label class="check"><input type="checkbox" id="grp-ct"><span>比賽結束自動送分到班級小鎮（第一名 +3、第二名 +2、第三名 +1，同分加一樣）</span></label>
+      <p class="hint">每一組可以選要把分數加到班級小鎮的哪一組（班級小鎮有第 1～3 組）。班級小鎮要在同一台裝置、同一個網址（gogo3747p.github.io）開著，或下次打開時，就會自動加進「正在上課的班級」。分組比賽只用唱歌模式（學徒之路或巫師之路），不會計入個人闖關星星和金幣。</p>
+    </div>
+  </details>
   <details class="panel" id="free-panel">
     <summary>自由練習室：自己選小節</summary>
     <div class="row">
@@ -627,6 +656,11 @@ textarea:focus{border-color:var(--gold)}
     <canvas id="cv-bubble"></canvas>
     <div id="bb-result" class="bb-result" hidden></div>
   </div>
+</section>
+
+<!-- GROUP CONTEST -->
+<section id="scr-grp" class="screen" hidden>
+  <div id="grp-stage" class="grp-stage"></div>
 </section>
 
 <!-- RESULT -->
@@ -2484,13 +2518,14 @@ $('#btn-mic').addEventListener('click', () => { if (micCheckRaf) micCheckStop();
 let wakeLock = null;
 async function startPractice() {
   if (S.mode === 'bubble' || S.mode === 'run') { startBubble(); return; }
+  if (GRP.on && !GRP.active) { grpBegin(); return; }
   micCheckStop();
   const err = $('#mic-err'); err.hidden = true;
   AE.init();
   try { await Mic.start(); } catch (e) { if (!$('#scr-map').hidden || true) { renderMap(); show('map'); } err.hidden = false; err.textContent = micErrorText(e); err.scrollIntoView({ block: 'center' }); return; }
   const tr = S.tl.tracks[S.trackIdx];
   $('#pi-song').textContent = S.song.title || '';
-  $('#pi-stage').textContent = S.stage.boss ? '最終試煉' : S.stage.free ? '自由練習' : `第 ${S.stage.i + 1} 關 · ${S.stage.name}`;
+  $('#pi-stage').textContent = (GRP.active ? `👥 ${grpTeams()[GRP.turn].name} · ` : '') + (S.stage.boss ? '最終試煉' : S.stage.free ? '自由練習' : `第 ${S.stage.i + 1} 關 · ${S.stage.name}`);
   $('#pi-part').innerHTML = `<span class="gem" style="background:${tr.color};color:${tr.color}"></span>${esc(tr.label)} · ${S.mode === 'hard' ? '巫師之路' : '學徒之路'}`;
   $('#lbl-guide').hidden = S.mode !== 'easy';
   setLyricBtn();
@@ -2951,6 +2986,117 @@ function runDraw(st) {
   if (BB.failed) { g.fillStyle = 'rgba(8,6,22,0.55)'; g.fillRect(0, 0, W, H); g.font = '900 32px "Noto Serif TC",serif'; g.fillStyle = '#ff9aa8'; g.fillText('魔力水晶用完了！', W / 2, H * 0.45); }
 }
 
+
+/* ================= 分組比賽：輪流演唱 ================= */
+const GRP_COLORS = [['紅', '#ff5a6e'], ['黃', '#ffc83d'], ['綠', '#3fd17a'], ['藍', '#4c9bff'], ['紫', '#a874ff'], ['橘', '#ff8f3f']];
+const GRP = Object.assign({ on: false, count: 3, teams: [], ct: true }, LS.get('cpc-grp', {}), { active: false, results: [], turn: 0 });
+for (let i = 0; i < 6; i++) GRP.teams[i] = Object.assign({ name: `第 ${i + 1} 組`, ct: i < 3 ? i + 1 : 0 }, GRP.teams[i] || {}, { color: GRP_COLORS[i][1] });
+try { GRP.ct = localStorage.getItem('rgCTSend') !== '0'; } catch (e) {}
+const grpSave = () => LS.set('cpc-grp', { on: GRP.on, count: GRP.count, teams: GRP.teams.map(t => ({ name: t.name, ct: t.ct })) });
+function renderGrp() {
+  $('#grp-on').checked = GRP.on; $('#grp-ct').checked = GRP.ct;
+  $$('#grp-count button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.v === GRP.count)));
+  const box = $('#grp-teams'); box.innerHTML = '';
+  GRP.teams.slice(0, GRP.count).forEach((t, i) => {
+    const d = document.createElement('div'); d.className = 'grp-team'; d.style.setProperty('--tc', t.color);
+    d.innerHTML = `<input type="text" maxlength="12" value="${esc(t.name)}" aria-label="第 ${i + 1} 組名稱"><select aria-label="${esc(t.name)}加分到班級小鎮的哪一組"><option value="0">不送分</option><option value="1">→ 小鎮第1組</option><option value="2">→ 小鎮第2組</option><option value="3">→ 小鎮第3組</option></select>`;
+    d.querySelector('select').value = String(t.ct || 0);
+    d.querySelector('input').addEventListener('change', e => { t.name = e.target.value.trim() || `第 ${i + 1} 組`; grpSave(); });
+    d.querySelector('select').addEventListener('change', e => { t.ct = +e.target.value; grpSave(); });
+    box.appendChild(d);
+  });
+}
+$('#grp-on').addEventListener('change', e => { GRP.on = e.target.checked; grpSave(); if (GRP.on && $('#grp-panel')) $('#grp-panel').open = true; });
+$('#grp-ct').addEventListener('change', e => { GRP.ct = e.target.checked; try { localStorage.setItem('rgCTSend', GRP.ct ? '1' : '0'); } catch (x) {} });
+$$('#grp-count button').forEach(b => b.addEventListener('click', () => { GRP.count = +b.dataset.v; grpSave(); renderGrp(); }));
+renderGrp();
+const grpTeams = () => GRP.teams.slice(0, GRP.count);
+function grpBegin() {
+  GRP.active = true; GRP.results = []; GRP.turn = 0; GRP.range = S.range.slice(); GRP.stage = Object.assign({}, S.stage);
+  grpIntro();
+}
+function grpBoard(highlight) {
+  const T = grpTeams();
+  return `<div class="grp-board">${T.map((t, i) => { const r = GRP.results[i]; return `<div class="grp-row${i === highlight ? ' now' : ''}" style="--tc:${t.color}"><span class="medal">${r ? (r.early ? '⏸' : '✓') : i === highlight ? '🎤' : '…'}</span><b>${esc(t.name)}</b><span class="st">${r ? `★ ${r.stars}` : i === highlight ? '準備中' : '等待中'}</span></div>`; }).join('')}</div>`;
+}
+function grpIntro() {
+  const T = grpTeams(), t = T[GRP.turn];
+  $('#grp-stage').innerHTML = `<div class="grp-card"><h2>👥 分組比賽・${esc(S.song.title || '')}</h2>
+    <div class="hint" style="margin:0">${GRP.stage.boss ? '最終試煉（整首）' : GRP.stage.free ? '自由練習' : `第 ${GRP.stage.i + 1} 關`}・${S.mode === 'hard' ? '巫師之路' : '學徒之路'}・${esc(S.tl.tracks[S.trackIdx].label)}</div>
+    <div class="grp-turn" style="color:${t.color}">輪到 ${esc(t.name)}！</div>
+    ${grpBoard(GRP.turn)}
+    <div class="btn-row" style="justify-content:center"><button type="button" class="btn primary big" id="grp-go">🎤 ${esc(t.name)} 開始演唱</button><button type="button" class="btn ghost" id="grp-quit">結束比賽</button></div></div>`;
+  show('grp');
+  $('#grp-go').onclick = () => { S.range = GRP.range.slice(); S.stage = Object.assign({}, GRP.stage); startPractice(); };
+  $('#grp-quit').onclick = () => { GRP.active = false; renderMap(); show('map'); };
+}
+function grpAfterRun(sess, res, score) {
+  const T = grpTeams(), t = T[GRP.turn];
+  const recs = LS.get('cpc-records', []);
+  recs.unshift({ time: Date.now(), name: `${playerName()}｜${t.name}`, song: sess.song.title || '', part: sess.track.label, mode: '分組比賽', range: (GRP.stage.boss ? '最終試煉' : GRP.stage.free ? '自由練習' : `第${GRP.stage.i + 1}關`) + (res.early ? '（中止）' : ''), score, stars: stars10(score) });
+  LS.set('cpc-records', recs.slice(0, 800));
+  if (res.early) {
+    $('#grp-stage').innerHTML = `<div class="grp-card"><h2>${esc(t.name)} 中止了</h2><div class="btn-row" style="justify-content:center"><button type="button" class="btn primary" id="grp-retry">讓 ${esc(t.name)} 重唱</button><button type="button" class="btn soft" id="grp-keep">用目前的成績（★ ${stars10(score)}）</button></div></div>`;
+    show('grp');
+    $('#grp-retry').onclick = () => grpIntro();
+    $('#grp-keep').onclick = () => { GRP.results[GRP.turn] = { score, stars: stars10(score), early: true }; grpNext(); };
+    return;
+  }
+  GRP.results[GRP.turn] = { score, stars: stars10(score) };
+  grpNext();
+}
+function grpNext() {
+  const T = grpTeams(), done = GRP.turn, t = T[done], r = GRP.results[done];
+  GRP.turn++;
+  if (GRP.turn >= T.length) { grpFinal(); return; }
+  const nx = T[GRP.turn];
+  $('#grp-stage').innerHTML = `<div class="grp-card"><h2 style="color:${t.color}">${esc(t.name)} 唱完了！</h2>
+    <div class="res-stars" style="justify-content:center">${Array.from({ length: 10 }, (_, i) => STAR(i < r.stars)).join('')}</div>
+    ${grpBoard(GRP.turn)}
+    <div class="btn-row" style="justify-content:center"><button type="button" class="btn primary big" id="grp-nx">下一組：${esc(nx.name)} →</button></div></div>`;
+  show('grp');
+  $('#grp-nx').onclick = () => grpIntro();
+}
+function grpFinal() {
+  GRP.active = false;
+  const T = grpTeams(), rs = T.map((t, i) => Object.assign({ i, t }, GRP.results[i] || { score: 0, stars: 0 }));
+  const vals = [...new Set(rs.map(r => r.score))].sort((a, b) => b - a);
+  rs.forEach(r => { r.rank = vals.indexOf(r.score) + 1; });
+  const sorted = rs.slice().sort((a, b) => a.rank - b.rank || a.i - b.i);
+  const M = ['🥇', '🥈', '🥉'];
+  const pods = sorted.filter(r => r.rank <= 3);
+  const top3 = sorted.slice(0, 3), order = [top3[1], top3[0], top3[2]].filter(Boolean);
+  // class town awards
+  let ctHtml = '';
+  if (GRP.ct) {
+    const P = [3, 2, 1], adds = {}, lines = [], skip = [];
+    sorted.forEach(r => { if (r.rank > 3 || r.score <= 0) return; const g = r.t.ct, pt = P[r.rank - 1]; if (!g) { skip.push(r.t.name); return; } adds[g] = (adds[g] || 0) + pt; lines.push(`第 ${r.rank} 名 ${esc(r.t.name)} → 小鎮第 ${g} 組 <b>+${pt}</b>`); });
+    if (lines.length) {
+      const it = { id: 'cp' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), at: Date.now(), src: '星韻魔法學院・分組演唱', adds };
+      let L = []; try { L = JSON.parse(localStorage.getItem('classtown_inbox') || '[]'); if (!Array.isArray(L)) L = []; } catch (e) {}
+      L.push(it); try { localStorage.setItem('classtown_inbox', JSON.stringify(L)); } catch (e) {}
+      GRP.lastAward = it.id;
+      ctHtml = `<div class="grp-ct" id="grp-ctbox"><b>🏘️ 已送到班級小鎮（正在上課的班級）</b><div>${lines.join('<br>')}</div>${skip.length ? `<small>${skip.map(esc).join('、')} 設定為不送分。</small><br>` : ''}<small>班級小鎮要在這台裝置的瀏覽器開著（或下次打開時）才會加進去。</small> <button type="button" class="btn ghost small" id="grp-undo">↩ 取消這次加分</button></div>`;
+    } else ctHtml = `<div class="grp-ct">🏘️ 這場沒有可以送到班級小鎮的小組${skip.length ? '（前三名都設定為不送分）' : ''}。</div>`;
+  }
+  $('#grp-stage').innerHTML = `<div class="grp-card"><h2>🏆 比賽結果・${esc(S.song.title || '')}</h2>
+    <div class="grp-podium">${order.map(r => `<div class="grp-pod" style="--tc:${r.t.color};height:${r.rank === 1 ? 170 : r.rank === 2 ? 135 : 105}px"><span class="m">${M[r.rank - 1]}</span><span>${esc(r.t.name)}</span><span>★ ${r.stars}</span></div>`).join('')}</div>
+    <div class="grp-board">${sorted.map(r => `<div class="grp-row" style="--tc:${r.t.color}"><span class="medal">${M[r.rank - 1] || r.rank}</span><b>${esc(r.t.name)}</b><span class="st">★ ${r.stars}</span></div>`).join('')}</div>
+    <p class="hint" style="margin:0">星星一樣時，依更細的分數排名；分數完全一樣才算同名次。</p>
+    ${ctHtml}
+    <div class="btn-row" style="justify-content:center"><button type="button" class="btn primary" id="grp-again">再比一次</button><button type="button" class="btn ghost" id="grp-back">回到試煉之塔</button></div></div>`;
+  show('grp');
+  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) setTimeout(lvChime, 300);
+  $('#grp-again').onclick = () => { S.range = GRP.range.slice(); S.stage = Object.assign({}, GRP.stage); grpBegin(); };
+  $('#grp-back').onclick = () => { renderMap(); show('map'); };
+  const u = $('#grp-undo'); if (u) u.onclick = () => {
+    let L = []; try { L = JSON.parse(localStorage.getItem('classtown_inbox') || '[]'); } catch (e) {}
+    const box = $('#grp-ctbox');
+    if (Array.isArray(L) && L.some(x => x && x.id === GRP.lastAward)) { try { localStorage.setItem('classtown_inbox', JSON.stringify(L.filter(x => x && x.id !== GRP.lastAward))); } catch (e) {} box.innerHTML = '🏘️ 已取消，這場不會加分。'; }
+    else box.innerHTML = '🏘️ 班級小鎮已經收到了，請到班級小鎮按「↩ 復原」取消。';
+  };
+}
+
 $('#bb-stop').addEventListener('click', () => { if (BB && BB.running) bbFinish(true); else { renderMap(); show('map'); } });
 
 $('#btn-stop').addEventListener('click', () => { if (S.session && !S.session.dead) S.session.finish(true); });
@@ -2966,6 +3112,7 @@ function endPractice(sess, cutoff, early) {
   res.early = early && cutoff < sess.E;
   res.maxCombo = sess.maxCombo;
   const score = Math.round(res.total);
+  if (GRP.active) { grpAfterRun(sess, res, score); return; }
   const tr = sess.track, st = sess.stage;
   let unlocked = null, prevBest = -1;
   if (!st.free && !res.early) {

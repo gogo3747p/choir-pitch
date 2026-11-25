@@ -4600,18 +4600,39 @@ const SYNC = (() => {
   const KEYS = ['cpc-wiz', 'cpc-classes', 'cpc-classes-add', 'cpc-classes-del', 'cpc-progress', 'cpc-records'];
   let M = (() => { try { return JSON.parse(localStorage.getItem(MK)) || {}; } catch (e) { return {}; } })();
   let busy = false, again = false, timer = 0, state = '', lastErr = '', muted = false, showQR = false;
-  const on = () => !!(M.g && M.tok);
+  const isFb = () => !!(M.fu && M.fr);
+  const on = () => !!((M.g && M.tok) || isFb());
+  let es = null, rtTimer = 0;
+  const fbURL = () => String(M.fu).replace(/\/+$/, '') + '/choirpitch/' + encodeURIComponent(M.fr) + '/doc.json';
+  const fbErr = r => new Error(r.status === 401 || r.status === 403 ? '資料庫拒絕存取：請在 Firebase 的「規則」允許 choirpitch 路徑讀寫' : r.status === 404 ? '找不到這個資料庫網址' : '連線錯誤 HTTP ' + r.status);
   const saveM = () => { try { localStorage.setItem(MK, JSON.stringify(M)); } catch (e) {} };
   const hdr = tok => ({ Authorization: 'Bearer ' + tok, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' });
   const ghErr = r => new Error(r.status === 401 ? '權杖不正確或已過期' : r.status === 403 ? '權杖沒有 Gists 權限，或使用次數暫時太多' : r.status === 404 ? '找不到雲端資料（可能被刪除，或權杖沒有權限）' : '連線錯誤 HTTP ' + r.status);
   const b64e = x => btoa(unescape(encodeURIComponent(x))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   const b64d = x => { x = String(x).replace(/-/g, '+').replace(/_/g, '/'); while (x.length % 4) x += '='; return decodeURIComponent(escape(atob(x))); };
-  const joinCode = () => b64e(JSON.stringify({ g: M.g, t: M.tok }));
+  const joinCode = () => b64e(JSON.stringify(isFb() ? { f: M.fu, r: M.fr } : { g: M.g, t: M.tok }));
   const joinLink = () => location.origin + location.pathname + '#cpsync=' + joinCode();
-  function parseJoin(v) { v = String(v || '').trim(); const m = /#cpsync=([A-Za-z0-9_\-]+)/.exec(v); if (m) v = m[1]; try { const o = JSON.parse(b64d(v)); if (o && o.g && o.t) return { g: String(o.g), t: String(o.t) }; } catch (e) {} return null; }
+  function parseJoin(v) { v = String(v || '').trim(); const m = /#cpsync=([A-Za-z0-9_\-]+)/.exec(v); if (m) v = m[1]; try { const o = JSON.parse(b64d(v)); if (o && o.f && o.r) return { f: String(o.f), r: String(o.r) }; if (o && o.g && o.t) return { g: String(o.g), t: String(o.t) }; } catch (e) {} return null; }
   const canon = o => JSON.stringify(o, (k, v) => v && typeof v === 'object' && !Array.isArray(v) ? Object.keys(v).sort().reduce((a, x) => (a[x] = v[x], a), {}) : v);
 
+  async function fbGet() {
+    let r; try { r = await fetch(fbURL(), { cache: 'no-store', headers: { 'X-Firebase-ETag': 'true' } }); } catch (e) { r = await fetch(fbURL(), { cache: 'no-store' }); }
+    if (!r.ok) throw fbErr(r);
+    M.etag = r.headers.get('ETag') || ''; const v = await r.json();
+    if (!v) return null; try { return JSON.parse(v).d || null; } catch (e) { return null; }
+  }
+  async function fbPut(d) {
+    const body = JSON.stringify(JSON.stringify({ t: Date.now(), d })); let r;
+    if (M.etag) { r = await fetch(fbURL(), { method: 'PUT', body, headers: { 'if-match': M.etag } }); if (r.status === 412) return false; if (r.ok) { M.etag = r.headers.get('ETag') || ''; return true; } }
+    r = await fetch(fbURL(), { method: 'PUT', body }); if (!r.ok) throw fbErr(r); M.etag = ''; return true;
+  }
+  function listen() {
+    try { if (es) es.close(); } catch (e) {} es = null;
+    if (!isFb() || typeof EventSource === 'undefined') return;
+    try { es = new EventSource(fbURL()); const kick = () => { clearTimeout(rtTimer); rtTimer = setTimeout(sync, 250); }; es.addEventListener('put', kick); es.addEventListener('patch', kick); } catch (e) { es = null; }
+  }
   async function getRemote(g, tok) {
+    if (isFb()) return fbGet();
     g = g || M.g; tok = tok || M.tok;
     const h = hdr(tok); if (M.etag && g === M.g && M.last) h['If-None-Match'] = M.etag;
     const r = await fetch(GH + '/gists/' + encodeURIComponent(g), { headers: h, cache: 'no-store' });
@@ -4624,9 +4645,10 @@ const SYNC = (() => {
     return d;
   }
   async function putRemote(d) {
+    if (isFb()) return fbPut(d);
     const r = await fetch(GH + '/gists/' + encodeURIComponent(M.g), { method: 'PATCH', headers: Object.assign({ 'Content-Type': 'application/json' }, hdr(M.tok)), body: JSON.stringify({ files: { [FILE]: { content: JSON.stringify({ t: Date.now(), d }) } } }) });
     if (!r.ok) throw ghErr(r);
-    M.etag = r.headers.get('ETag') || ''; M.last = d;
+    M.etag = r.headers.get('ETag') || ''; M.last = d; return true;
   }
   async function createGist(tok) {
     const r = await fetch(GH + '/gists', { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, hdr(tok)), body: JSON.stringify({ description: '星韻魔法學院 雲端同步資料（請勿刪除）', public: false, files: { 'README.md': { content: '# 星韻魔法學院 雲端同步資料\n\n這個 Gist 由「星韻魔法學院」自動建立，用來在平板和電腦之間同步學生的金幣、寵物、闖關進度和練習紀錄。請不要刪除或修改。\n' } } }) });
@@ -4679,15 +4701,18 @@ const SYNC = (() => {
     if (busy) { again = true; return; }
     busy = true; state = 'sync'; ui();
     try {
-      const rem = await getRemote(), loc = readLocal(), m = rem ? merge(rem, loc) : loc;
-      if (canon(m) !== canon(loc)) { writeLocal(m); refreshViews(); }
-      if (!rem || canon(m) !== canon(rem)) await putRemote(m);
+      for (let k = 0; k < 4; k++) {
+        const rem = await getRemote(), loc = readLocal(), m = rem ? merge(rem, loc) : loc;
+        if (canon(m) !== canon(loc)) { writeLocal(m); refreshViews(); }
+        if (!rem || canon(m) !== canon(rem)) { if (!(await putRemote(m))) continue; }
+        break;
+      }
       M.at = Date.now(); state = 'ok'; lastErr = '';
     } catch (e) { state = 'err'; lastErr = e.message || String(e); }
     saveM(); busy = false; ui();
     if (again) { again = false; setTimeout(sync, 500); }
   }
-  window.SYNC_HOOK = k => { if (muted || !on() || !KEYS.includes(k)) return; clearTimeout(timer); timer = setTimeout(sync, 3000); };
+  window.SYNC_HOOK = k => { if (muted || !on() || !KEYS.includes(k)) return; clearTimeout(timer); timer = setTimeout(sync, isFb() ? 700 : 3000); };
   const tm = t => t ? new Date(t).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
   function ui() {
     const c = $('#sync-chip');
@@ -4699,25 +4724,34 @@ const SYNC = (() => {
     const box = $('#sync-body'); if (!box) return;
     if (on()) {
       let q = ''; if (showQR) { try { q = window.QRGen ? window.QRGen(joinLink()) : ''; } catch (e) {} }
-      box.innerHTML = `<div class="sync-box"><div class="sync-status"><span style="font-size:26px">${state === 'err' ? '⚠️' : '✅'}</span><div style="flex:1;min-width:200px"><b>已連上 GitHub 雲端</b><div class="hint" style="margin:0">${state === 'err' ? `暫時無法同步（${esc(lastErr)}）。資料會先存在這台裝置，恢復連線後自動補傳。` : `上次同步：${tm(M.at)}`}</div></div>
+      box.innerHTML = `<div class="sync-box"><div class="sync-status"><span style="font-size:26px">${state === 'err' ? '⚠️' : '✅'}</span><div style="flex:1;min-width:200px"><b>${isFb() ? `已連上 Firebase 即時同步（房間 ${esc(M.fr)}）` : '已連上 GitHub 雲端（每分鐘同步）'}</b><div class="hint" style="margin:0">${state === 'err' ? `暫時無法同步（${esc(lastErr)}）。資料會先存在這台裝置，恢復連線後自動補傳。` : `上次同步：${tm(M.at)}`}</div></div>
         <button type="button" class="btn soft small" data-sy="now">🔄 立即同步</button><button type="button" class="btn primary small" data-sy="qr">📱 連接其他平板／電腦</button><button type="button" class="btn danger small" data-sy="off">中斷這台</button></div>
         ${showQR ? `<div class="sync-qr">${q}<div style="flex:1;min-width:240px;display:flex;flex-direction:column;gap:8px"><b>讓其他平板或電腦連上同一個雲端</b><span>平板：用<b>相機</b>掃左邊的 QR code，點跳出的連結開啟，就會自動連線。</span><span>電腦：複製下面的連結，用 Chrome 開啟。</span><textarea readonly id="sync-link">${esc(joinLink())}</textarea><div class="btn-row"><button type="button" class="btn soft small" data-sy="copy">📋 複製連結</button></div><span class="sync-warn">⚠️ 這個連結和 QR code 就像鑰匙，請不要讓學生拍到或拿到。</span></div></div>` : ''}
-        <p class="hint">連上同一個雲端的平板和電腦會共用：各學生和各班的魔法師金幣、等級、寵物、闖關星星、班級名單，以及上面這份練習紀錄。歌曲和試煉規則還是用「匯出學生版網頁」更新到 GitHub。</p></div>`;
+        <p class="hint">${isFb() ? '即時同步：任何一台有變化，其他台一兩秒內更新。' : ''}連上同一個雲端的平板和電腦會共用：各學生和各班的魔法師金幣、等級、寵物、闖關星星、班級名單，以及上面這份練習紀錄。歌曲和試煉規則還是用「匯出學生版網頁」更新到 GitHub。</p></div>`;
     } else {
-      box.innerHTML = `<div class="sync-box"><p class="hint" style="margin:0">讓教室的電腦和每一台平板共用學生的金幣、等級、寵物、闖關進度和練習紀錄。資料存在您 GitHub 帳號裡一個不公開的 Gist。</p>
+      let du = ''; try { du = (JSON.parse(localStorage.getItem('classtown_sync')) || {}).u || ((JSON.parse(localStorage.getItem('rhythm-town-v1')) || {}).sync || {}).url || ''; } catch (e) {}
+      const room = 'cpc' + Math.random().toString(36).slice(2, 10);
+      box.innerHTML = `<div class="sync-box"><p class="hint" style="margin:0">讓教室的電腦和每一台平板共用學生的金幣、等級、寵物、闖關進度和練習紀錄。</p>
         <h4 style="margin:6px 0 0">A. 已經有其他裝置連上了？</h4><p class="hint" style="margin:0">在那台裝置的這裡按「📱 連接其他平板／電腦」，用這台的相機掃 QR code。或把連結貼在這裡：</p>
         <div class="row"><input type="text" id="sync-join" placeholder="貼上連線連結" autocomplete="off" style="flex:1;min-width:220px"><button type="button" class="btn soft" data-sy="join">連線</button></div>
-        <h4 style="margin:10px 0 0">B. 第一次設定（只要在第一台電腦做一次）</h4>
+        <h4 style="margin:10px 0 0">B. 第一次設定：Firebase 即時同步（建議）</h4>
+        <p class="hint" style="margin:0">任何一台平板加了金幣、召喚了寵物，其他台一兩秒內就會更新。可以和班級小鎮用同一個 Firebase 資料庫，資料會放在另一個「choirpitch」資料夾，不會互相影響。</p>
+        <label class="field"><span>Firebase 資料庫網址${du ? '（已經幫您帶入班級小鎮用的網址）' : ''}</span><input type="text" id="sync-fu" value="${esc(du)}" placeholder="https://xxxx-default-rtdb.firebaseio.com" autocomplete="off"></label>
+        <label class="field" style="max-width:340px"><span>房間代碼（像密碼一樣，請用難猜的一串）</span><input type="text" id="sync-fr" value="${room}" maxlength="40" autocomplete="off"></label>
+        <div class="row"><button type="button" class="btn primary" data-sy="fbgo">連線到 Firebase</button></div>
+        <details><summary>如果出現「資料庫拒絕存取」</summary><p class="hint">到 Firebase 主控台 → Realtime Database →「規則」，在 rules 裡面加上這一段（和班級小鎮的 classtown 並列），再按「發布」：</p><pre style="white-space:pre-wrap;background:rgba(0,0,0,.3);padding:8px;border-radius:8px">"choirpitch": { "$room": { ".read": true, ".write": true } }</pre></details>
+        <details><summary>C. 改用 GitHub 權杖（每分鐘同步一次）</summary>
         <ol><li>先在這台電腦登入 GitHub，然後按這個按鈕（名稱、期限和 Gists 權限都已經幫您填好）：<br><a class="btn soft small" href="https://github.com/settings/personal-access-tokens/new?name=%E6%98%9F%E9%9F%BB%E9%AD%94%E6%B3%95%E5%AD%B8%E9%99%A2&description=%E6%98%9F%E9%9F%BB%E9%AD%94%E6%B3%95%E5%AD%B8%E9%99%A2+%E9%9B%B2%E7%AB%AF%E5%90%8C%E6%AD%A5&expires_in=366&gists=write" target="_blank" rel="noopener">🔑 打開 GitHub 權杖頁</a></li><li>確認 <b>Permissions</b> 裡有 <b>Gists：Read and write</b>（如果沒有，按 <b>Add permissions</b> 加上 Gists，再選 Read and write）。</li><li>按最下面的綠色 <b>Generate token</b>，複製 <code>github_pat_</code> 開頭的那串，貼到下面。這串只會出現一次，可以另外存起來。</li></ol>
         <p class="hint" style="margin:0">如果您幫「直笛守護者」做的權杖還留著，也可以直接貼同一個。</p>
-        <div class="row"><input type="password" id="sync-tok" placeholder="貼上 github_pat_… 權杖" autocomplete="off" style="flex:1;min-width:220px"><button type="button" class="btn primary" data-sy="make">建立雲端</button></div></div>`;
+        <div class="row"><input type="password" id="sync-tok" placeholder="貼上 github_pat_… 權杖" autocomplete="off" style="flex:1;min-width:220px"><button type="button" class="btn primary" data-sy="make">建立雲端</button></div></details></div>`;
     }
     const msg = $('#sync-msg') || null;
   }
   async function join(g, tok) {
-    M = { g, tok }; saveM(); state = 'sync'; ui();
+    M = typeof g === 'object' ? (g.f ? { fu: g.f, fr: g.r } : { g: g.g, tok: g.t }) : { g, tok }; saveM(); state = 'sync'; ui();
     await sync();
-    if (state === 'err') { const e = lastErr; M = {}; saveM(); state = ''; ui(); throw new Error(e); }
+    if (state === 'err') { const e = lastErr; M = {}; saveM(); state = ''; ui(); listen(); throw new Error(e); }
+    listen();
   }
   document.addEventListener('click', async e => {
     const b = e.target.closest('[data-sy]'); if (!b) return;
@@ -4725,8 +4759,16 @@ const SYNC = (() => {
     if (k === 'now') { await sync(); return; }
     if (k === 'qr') { showQR = !showQR; draw(); return; }
     if (k === 'copy') { const ta = $('#sync-link'); try { await navigator.clipboard.writeText(ta.value); b.textContent = '已複製 ✓'; } catch (x) { ta.select(); b.textContent = '請手動全選複製'; } return; }
-    if (k === 'off') { armButton(b, '確定中斷？（雲端資料不會刪除）', () => { M = {}; saveM(); state = ''; showQR = false; ui(); draw(); }); return; }
-    if (k === 'join') { const o = parseJoin($('#sync-join').value); if (!o) { flash('連結不正確，請重新複製一次。', true); return; } b.disabled = true; try { await join(o.g, o.t); flash('✅ 已連上雲端，資料已經合併。'); } catch (x) { flash('無法連線：' + x.message, true); } b.disabled = false; draw(); return; }
+    if (k === 'off') { armButton(b, '確定中斷？（雲端資料不會刪除）', () => { M = {}; saveM(); state = ''; showQR = false; listen(); ui(); draw(); }); return; }
+    if (k === 'join') { const o = parseJoin($('#sync-join').value); if (!o) { flash('連結不正確，請重新複製一次。', true); return; } b.disabled = true; try { await join(o); flash('✅ 已連上雲端，資料已經合併。'); } catch (x) { flash('無法連線：' + x.message, true); } b.disabled = false; draw(); return; }
+    if (k === 'fbgo') {
+      const u = ($('#sync-fu').value || '').trim(), r = ($('#sync-fr').value || '').trim();
+      if (!/^https:\/\/.+(firebaseio\.com|firebasedatabase\.app)\/?$/.test(u)) { flash('請輸入 Firebase 資料庫網址（https 開頭，結尾是 firebaseio.com 或 firebasedatabase.app）', true); return; }
+      if (!/^[A-Za-z0-9_-]{6,40}$/.test(r)) { flash('房間代碼請用 6～40 個英文、數字', true); return; }
+      b.disabled = true; b.textContent = '連線中…';
+      try { await join({ f: u, r }); showQR = true; flash('✅ 已連上 Firebase 即時同步！用 QR code 把其他平板連上來吧。'); } catch (x) { flash('無法連線：' + x.message, true); }
+      b.disabled = false; draw(); return;
+    }
     if (k === 'make') {
       const tok = ($('#sync-tok').value || '').trim();
       if (!/^(github_pat_|ghp_)[A-Za-z0-9_]{20,}$/.test(tok)) { flash('權杖格式不對：應該是 github_pat_ 開頭的一長串文字。', true); return; }
@@ -4743,15 +4785,15 @@ const SYNC = (() => {
     const o = parseJoin(m[1]); const md = $('#sync-modal'), body = $('#sync-modal-body');
     if (!o) return;
     md.hidden = false;
-    if (on() && M.g === o.g) { body.innerHTML = '<h2>☁️ 雲端同步</h2><p>這台裝置已經連上同一個雲端了。</p>'; return; }
+    if (on() && ((o.g && M.g === o.g) || (o.f && M.fu === o.f && M.fr === o.r))) { body.innerHTML = '<h2>☁️ 雲端同步</h2><p>這台裝置已經連上同一個雲端了。</p>'; return; }
     body.innerHTML = '<h2>☁️ 雲端同步</h2><p>🔄 正在連線…</p>';
-    join(o.g, o.t).then(() => { body.innerHTML = '<h2>☁️ 已連上雲端！</h2><p>這台裝置的魔法師、金幣、寵物和闖關進度，會和其他平板、電腦自動同步。</p>'; })
+    join(o).then(() => { body.innerHTML = '<h2>☁️ 已連上雲端！</h2><p>這台裝置的魔法師、金幣、寵物和闖關進度，會和其他平板、電腦自動同步。</p>'; })
       .catch(x => { body.innerHTML = `<h2>⚠️ 無法連線</h2><p>${esc(x.message)}</p><p class="hint">請確認網路，或請老師重新產生 QR code。</p>`; });
   }
   fromHash(); window.addEventListener('hashchange', fromHash);
-  if (on()) setTimeout(sync, 800);
-  setInterval(() => { if (on() && !playing() && document.visibilityState === 'visible') sync(); }, 60000);
-  document.addEventListener('visibilitychange', () => { if (on() && !playing()) sync(); });
+  if (on()) { setTimeout(sync, 800); listen(); }
+  setInterval(() => { if (on() && !playing() && document.visibilityState === 'visible') sync(); }, isFb() ? 30000 : 60000);
+  document.addEventListener('visibilitychange', () => { if (on() && !playing()) sync(); if (document.visibilityState === 'visible' && isFb() && (!es || es.readyState === 2)) listen(); });
   ui();
   return { sync, on, ui, draw, merge };
 })();
